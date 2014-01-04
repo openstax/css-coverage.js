@@ -2,7 +2,7 @@
   "name": "css-coverage",
   "version": "0.0.1",
   "dependencies": {
-    "css-polyfills": "git://github.com/philschatz/css-polyfills",
+    "css-polyfills": "*",
     "requirejs": "~2.1.9",
     "phantomjs": "~1.9.2-6",
     "optimist": "~0.6.0"
@@ -10,5 +10,9 @@
   "bin": {
     "css-coverage": "bin/css-coverage"
   },
-  "preferGlobal": true
+  "preferGlobal": true,
+  "keywords": [
+    "css",
+    "coverage"
+  ]
 }
