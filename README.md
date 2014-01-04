@@ -1,6 +1,6 @@
 # CSS Coverage!
 
-This project generates coverage information of your CSS (or LESS) files using <https://github.com/philschatz/css-polyfills> under the hood.
+Generates coverage information of your CSS (or LESS) files.
 
 # Install and Run
 
@@ -35,3 +35,6 @@ You can also generate LCOV data for use in services like <http://coveralls.io> o
 You can generate CSS coverage of a website by providing a URL instead of a local file in the `-h` command line argument.
 
 **Note:** LESS files that use `@import` do not work in this case (yet).
+
+
+This project uses the <https://github.com/philschatz/css-polyfills.js> project.
