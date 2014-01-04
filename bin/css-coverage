@@ -1,0 +1,72 @@
+#!/usr/bin/env node
+
+process.bin = process.title = 'css-coverage';
+
+var path = require('path');
+var spawn = require('child_process').spawn;
+
+var argv = require('optimist')
+    .usage('Generate coverage info for a CSS/LESS file against an HTML file. Usage: css-coverage -s path/to/style.[less/css] -h path/to/file.html')
+    .options('d', {
+        alias: 'debug'
+    })
+    .options('v', {
+        alias: 'verbose'
+    })
+    .options('s', {
+        demand: true,
+        alias: 'style'
+    })
+    .options('h', {
+        demand: true,
+        alias: 'html'
+    })
+    .options('l', {
+        alias: 'lcov'
+    }).argv;
+
+
+var harnessPath = path.resolve(path.join(__dirname, '..', 'phantom-coverage.coffee'));
+var stylePath = path.resolve(process.cwd(), argv.s);
+var htmlPath = null;
+// Support remote pages
+if (/^https?:\/\//.test(argv.h)) {
+    htmlPath = argv.h;
+} else {
+    htmlPath = path.resolve(process.cwd(), argv.h);
+}
+
+
+var args = [
+  '--web-security=false', // Used for instrumenting a URL instead of a local path
+  harnessPath,
+  path.dirname(harnessPath),
+  stylePath,
+  htmlPath
+];
+
+// Optional LCOV output file
+if (argv.l) {
+    var lcovPath = path.resolve(process.cwd(), argv.l);
+    args.push(lcovPath);
+}
+var options = {
+    cwd: path.dirname(harnessPath)
+};
+
+if (argv.d) {
+    console.log('Running phantomjs ' + args.join(' '));
+}
+if (argv.v) {
+    options.stdio = 'inherit'; // Print the output of PhantomJS
+} else {
+    options.stdio = 'ignore';
+}
+
+
+var child = spawn('phantomjs', args, options);
+
+child.on('close', function(code) {
+    console.log('Uncovered Count: ' + (code));
+    process.exit(code);
+});

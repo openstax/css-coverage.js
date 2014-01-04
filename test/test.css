@@ -1,0 +1,16 @@
+.class1 {
+  color: blue;
+  background-color: red;
+  color: green;
+  background-color: white;
+}
+
+.class2 {
+  border: 1px solid;
+  move-to: footer;
+}
+
+.unused-class { display: none; }
+p > div.another-unused-class { display: none; }
+
+.footer { content: pending(footer); }
