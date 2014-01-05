@@ -78,4 +78,4 @@ Globally (on the command line):
 
 ## How does this work?
 
-This project uses <https://github.com/philschatz/css-polyfills.js>.
+This project uses <http://philschatz.github.io/css-polyfills.js/>.
