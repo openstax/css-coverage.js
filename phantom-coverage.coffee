@@ -82,7 +82,7 @@ page.open encodeURI(address), (status) ->
       phantom.exit(1)
 
   loadScript(programDir + '/lib/phantomjs-hacks.js')
-  loadScript(programDir + '/node_modules/css-polyfills/dist.js')
+  loadScript(programDir + '/node_modules/css-polyfills/dist/css-polyfills.js')
 
   needToKeepWaiting = page.evaluate((lessFile, lessFilename) ->
 

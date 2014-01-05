@@ -1,0 +1,71 @@
+<html>
+
+<head>
+  <link rel="stylesheet" href="../../node_modules/mocha/mocha.css"/>
+  <!-- Specify which CSS/LESS files to cover by setting rel="stylesheet/coverage" -->
+  <link rel="stylesheet/coverage" href="./styles-all.less"/>
+</head>
+
+<body>
+<p>This is a test page that shows <strong>CSS Coverage</strong> in the blanket.js results! Mocha tests should run below.</p>
+</p>
+
+<div id="mocha"></div>
+
+<script src="../../node_modules/mocha/mocha.js"></script>
+<script src="../../bower_components/requirejs/require.js"></script>
+
+<script data-cover-only="dummy-project/" src="../../bower_components/blanket/dist/mocha/blanket_mocha.js"></script>
+<script src="../../bower_components/blanket/src/loaders/blanket_cs.js"></script>
+<script src="../../node_modules/grunt-blanket-mocha/support/mocha-blanket.js"></script>
+
+<script src="../../node_modules/css-polyfills/dist/css-polyfills.js"></script>
+
+<script>
+//(function() {
+
+require.config({
+  baseUrl: '../../',
+  paths: {
+    'coffee-script': './bower_components/coffee-script/extras/coffee-script',
+    'underscore':    './bower_components/underscore/underscore',
+    'jquery':        './bower_components/jquery/jquery',
+    'chai':          './bower_components/chai/chai',
+    'less':          './node_modules/less/dist/less-1.6.0',
+  }
+
+});
+
+blanket.options('timeout', 1000);
+blanket.options("existingRequireJS", false);
+// blanket.options("debug", true);
+mocha.setup('bdd');
+
+// Wait until requireJS has loaded all the files (so some can be instrumented)
+window.blanket.requiringFile('!!!SPECIAL_FILE_NAME');
+
+require(['cs!test/mocha-coffeescript/all-tests', 'cs!src/blanket-css-coverage'], function(allTests) {
+
+  // Wait until requireJS has loaded all the files (so some can be instrumented)
+  window.blanket.requiringFile('!!!SPECIAL_FILE_NAME', true);
+
+  // from http://www.geekdave.com/2013/08/02/automated-code-coverage-enforcement-for-mocha-using-grunt-and-blanket/
+  if(this.PHANTOMJS) {
+    this.blanket.options('reporter', '../../node_modules/grunt-blanket-mocha/support/grunt-reporter.js');
+  }
+
+  mocha.checkLeaks();
+  mocha.globals(['jQuery']);
+
+  // Needs to run once this file is loaded
+  mocha.run();
+});
+
+
+//})();
+</script>
+
+
+
+</body>
+</html>

@@ -1,0 +1,18 @@
+// Unit Test 1 creates an <h3> element so <h3> styles should be covered
+
+h3 { color: blue; }
+
+.unmatched { // Anything that is in LESS still works
+  * { color: yellow; }  // This should be RED in the Coverage Report
+}
+
+// Just here to show that mixins work
+.mixin() {
+  h3 { color: green; }
+  .unmatched { color: blue; } // This should be RED in the Coverage Report
+}
+
+.mixin();
+
+// Just here to show that imported styles also get instrumented and shown in the report
+@import "styles-more.less";

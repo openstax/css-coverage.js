@@ -1,11 +1,18 @@
 {
   "name": "css-coverage",
   "version": "0.0.2",
+  "scripts": {
+    "install": "bower install"
+  },
   "dependencies": {
-    "css-polyfills": "*",
+    "css-polyfills": ">=0.0.6",
     "requirejs": "~2.1.9",
     "phantomjs": "~1.9.2-6",
-    "optimist": "~0.6.0"
+    "optimist": "~0.6.0",
+    "grunt-blanket-mocha": "git://github.com/philschatz/grunt-blanket-mocha.git#fixes-for-octokit.js",
+    "less": "~1.6",
+    "chai": "~1.8.1",
+    "mocha": "~1.14.0"
   },
   "bin": {
     "css-coverage": "bin/css-coverage"
