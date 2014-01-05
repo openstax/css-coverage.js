@@ -4,7 +4,7 @@ Generates coverage information of your CSS (or LESS) files using the command lin
 
 By hooking into [BlanketJS](http://blanketjs.org) you can use this with Jasmine, Mocha, QUnit, Coveralls, and tools like [grunt-blanket-mocha](https://github.com/ModelN/grunt-blanket-mocha).
 
-## "How is this different from other CSS coverage tools?"
+## How is this different from other CSS coverage tools?
 
 Code coverage tools use Unit Tests to "exercise" the code and show you what is not tested; this project hooks into those same tools and gives you CSS coverage information for free!
 
@@ -14,12 +14,12 @@ It also:
 - provides a command line script to run against individual test files or pages hosted on a website
 
 
-# "Can I see it?"
+## Can I see it?
 
 Check out the in-browser [mocha demo](http://philschatz.github.io/css-coverage.js/test/mocha-demo)!
 
 
-# "What can I do with `css-coverage`?"
+## What can I do with `css-coverage`?
 
 You can use the command line version to:
 
@@ -28,7 +28,7 @@ You can use the command line version to:
 - generate a LCOV Report for use in services like [Coveralls](http://coveralls.io) or HTML reports using `lcov`
 
 
-## "Can I make Reports?"
+### Can I make Reports?
 
 You can also generate LCOV Files for Coveralls or just HTML reports:
 
@@ -39,14 +39,14 @@ You can also generate LCOV Files for Coveralls or just HTML reports:
     genhtml ./css.lcov --output-directory ./coverage
 
 
-## "Can I test Coverage of an entire Website?"
+### Can I test Coverage of an entire Website?
 
 You can generate CSS coverage of a website by providing a URL instead of a local file in the `-h` command line argument.
 
 **TODO:** Write an example using [CasperJS](http://casperjs.org)
 
 
-# "Can I run it with mocha, Jasmine, QUnit?"
+## Can I run it with mocha, Jasmine, QUnit?
 
 Yep! It integrates with [BlanketJS](http://blanketjs.org/) so you can see LESS/CSS coverage as well as JavaScript coverage.
 
@@ -59,7 +59,7 @@ All you need to do is add the following to your test harness HTML file (usually 
 See the [mocha demo](http://philschatz.github.io/css-coverage.js/test/mocha-demo) for an example and <test/mocha-demo/index.html> for the code.
 
 
-# "How do I install it?"
+## How do I install it?
 
 You can install locally or globally. Installing globally will give you access to `css-coverage` from the command line.
 
@@ -76,6 +76,6 @@ Globally (on the command line):
     css-coverage -s ./test/test.css -h ./test/test.html
 
 
-# "How does this work?"
+## How does this work?
 
-This project uses the <https://github.com/philschatz/css-polyfills.js> project.
+This project uses <https://github.com/philschatz/css-polyfills.js>.
