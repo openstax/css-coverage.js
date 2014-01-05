@@ -44,7 +44,7 @@ mocha.setup('bdd');
 // Wait until requireJS has loaded all the files (so some can be instrumented)
 window.blanket.requiringFile('!!!SPECIAL_FILE_NAME');
 
-require(['cs!test/mocha-coffeescript/all-tests', 'cs!src/blanket-css-coverage'], function(allTests) {
+require(['cs!test/mocha-demo/all-tests', 'cs!src/blanket-css-coverage'], function(allTests) {
 
   // Wait until requireJS has loaded all the files (so some can be instrumented)
   window.blanket.requiringFile('!!!SPECIAL_FILE_NAME', true);
