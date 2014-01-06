@@ -17,7 +17,7 @@ It also:
 
 ## Can I see it?
 
-Check out the in-browser [mocha demo](http://philschatz.github.io/css-coverage.js/test/mocha-demo)!
+Check out the in-browser [mocha demo](http://philschatz.github.io/css-coverage.js/test/mocha-demo)! (see _"blanket.js results"_ for the CSS coverage)
 
 
 ## What can I do with `css-coverage`?
