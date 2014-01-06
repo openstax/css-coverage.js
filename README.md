@@ -13,6 +13,7 @@ It also:
 - gives coverage information on your source LESS files, not just the compiled CSS file
 - provides a command line script to run against individual test files or pages hosted on a website
 
+**TODO:** Coverage currently runs after every test but there will be a function you can call in the middle of a test
 
 ## Can I see it?
 
