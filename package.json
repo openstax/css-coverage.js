@@ -5,7 +5,7 @@
     "install": "bower install"
   },
   "dependencies": {
-    "css-polyfills": ">=0.0.6",
+    "css-polyfills": ">=0.0.7",
     "requirejs": "~2.1.9",
     "phantomjs": "~1.9.2-6",
     "optimist": "~0.6.0",

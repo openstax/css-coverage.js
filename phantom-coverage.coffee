@@ -86,96 +86,150 @@ page.open encodeURI(address), (status) ->
 
   needToKeepWaiting = page.evaluate((lessFile, lessFilename) ->
 
-    window.require [
-      'jquery'
-      'less'
-      'cs!polyfill-path/index'
-      'cs!polyfill-path/selector-visitor'
-    ], ($, less, CSSPolyfills, AbstractSelectorVisitor) ->
+    $ = @CSSPolyfills.$
+    less = @CSSPolyfills.less
+    AbstractSelectorVisitor = @CSSPolyfills.AbstractSelectorVisitor
 
-      $root = $('html')
+    $root = $('html')
 
-      # Squirrel away the Mixin Definitions so later we can pull out the line number from the ruleset
-      # `debugInfo` gets added to the Ruleset later
-      mixinDefinitions = []
+    # Squirrel away the Mixin Definitions so later we can pull out the line number from the ruleset
+    # `debugInfo` gets added to the Ruleset later
+    mixinDefinitions = []
+    #mixinCalls = {}
+    mixinFrames = [] # Ties the definition `.mixin-name(){}` to the namespaces for the eval `#foo>#bar>.mixin-name();`
 
-      class CoverageVisitor
-        isPreEvalVisitor: true
+    # Monitor the Mixin.Calls to see which definitions get called
+    MixinDefinition_eval = less.tree.mixin.Definition::eval
+    less.tree.mixin.Definition::eval = (env, args, important) ->
+      @__coverage_called ?= 0
+      @__coverage_called += 1
 
-        constructor: () ->
-          @_visitor = new less.tree.visitor(@)
-        run: (root) -> @_visitor.visit(root)
+      sel = mixinFrames[mixinFrames.length-1].selector.toCSS()
+      node = @
+      params = []
+      for param in node.params
+        if param.name # TODO: Should use instanceof
+          params.push(param.name)
+        else if param.value
+          params.push(param.value.toCSS(less))
 
-        visitMixinDefinition: (node) ->
-          mixinDefinitions.push(node)
+      params.push('...') if node.variadic
+      params = params.join('; ')
+      console.log("MixinCall #{sel}(#{params})")
+
+      MixinDefinition_eval.apply(@, arguments)
+
+    MixinCall_eval = less.tree.mixin.Call::eval
+    less.tree.mixin.Call::eval = (env) ->
+      #mixinCalls[@selector.toCSS()] = @selector
+      mixinFrames.push {selector: @selector}
+      ret = MixinCall_eval.apply(@, arguments)
+      mixinFrames.pop()
+      return ret
+
+
+    class CoverageVisitor
+      isPreEvalVisitor: true
+
+      constructor: () ->
+        @_visitor = new less.tree.visitor(@)
+      run: (root) -> @_visitor.visit(root)
+
+      visitMixinDefinition: (node) ->
+        mixinDefinitions.push(node)
+        # params = []
+        # for param in node.params
+        #   if param.name # TODO: Should use instanceof
+        #     params.push(param.name)
+        #   else if param.value
+        #     params.push(param.value.toCSS(less))
+        #
+        # params.push('...') if node.variadic
+        # params = params.join('; ')
+        # console.log("MixinCall #{sel}(#{params})")
 
 
 
-      # Disable all plugins, just do coverage stats
-      poly = new CSSPolyfills {
-        plugins: []
-        lessPlugins: [new CoverageVisitor()]
-        # pseudoExpanderClass: null
-        # canonicalizerClass: null
-        doNotIncludeDefaultPlugins: true
-      }
+    # Disable all plugins, just do coverage stats
+    poly = new CSSPolyfills {
+      plugins: []
+      lessPlugins: [new CoverageVisitor()]
+      # pseudoExpanderClass: null
+      # canonicalizerClass: null
+      doNotIncludeDefaultPlugins: true
+    }
 
-      uncoveredCount = 0
+    uncoveredCount = 0
 
-      coverage = {} # path -> line -> count
+    coverage = {} # path -> line -> count
 
-      poly.on 'selector.end', (selector, matches, debugInfo) ->
-        fileName = debugInfo.fileName
-        line = debugInfo.lineNumber
-        if 0 >= matches
-          uncoveredCount += 1
-          console.log("Uncovered: {#{selector}}")
+    poly.on 'selector.end', (selector, matches, debugInfo) ->
+      fileName = debugInfo.fileName
+      line = debugInfo.lineNumber
+      if 0 >= matches
+        uncoveredCount += 1
+        console.log("Uncovered: {#{selector}}")
 
-          coverage[fileName] ?= {}
-          coverage[fileName][line] ?= 0
-        else
-          console.log("Covered: #{matches}: {#{selector}}")
-          coverage[fileName] ?= {}
-          coverage[fileName][line] ?= 0
-          coverage[fileName][line] += matches
+        coverage[fileName] ?= {}
+        coverage[fileName][line] ?= 0
+      else
+        console.log("Covered: #{matches}: {#{selector}}")
+        coverage[fileName] ?= {}
+        coverage[fileName][line] ?= 0
+        coverage[fileName][line] += matches
 
-      outputter = (msg) ->
-        alert JSON.stringify({type:'COVERAGE', msg:"#{msg}\n"})
+    outputter = (msg) ->
+      alert JSON.stringify({type:'COVERAGE', msg:"#{msg}\n"})
 
-      poly.run $root, lessFile, lessFilename, (err, newCSS) ->
-        throw new Error(err) if err
+    poly.run $root, lessFile, lessFilename, (err, newCSS) ->
+      throw new Error(err) if err
 
-        for mixinDef in mixinDefinitions
+      for mixinDef in mixinDefinitions
+
+        debugInfo = mixinDef.debugInfo
+        if not debugInfo
           for rule in mixinDef.rules
-            debugInfo = rule.debugInfo
             # Annoyingly, some Rulesets do not have debugInfo attached.
-            if debugInfo
-              fileName = debugInfo.fileName
-              line = debugInfo.lineNumber
+            debugInfo ?= rule.debugInfo
 
-              coverage[fileName] ?= {}
-              coverage[fileName][line] ?= 0
-              coverage[fileName][line] += 1
+        if debugInfo
+          fileName = debugInfo.fileName
+          line = debugInfo.lineNumber
+
+          coverage[fileName] ?= {}
+          coverage[fileName][line] ?= 0
+          coverage[fileName][line] += mixinDef.__coverage_called or 0
+        else
+          console.log("No debugInfo for mixin. You need to patch the less.js part in dist/css-polyfills.js. See comment for more info")
+          # Search for ` definition:` and add the following:
+          # After `save();` add `var debugInfo = getDebugInfo(i, input, env);`
+          #
+          # Replace `return new(tree.mixin.Definition)(name, params, ruleset, cond, variadic);` with the following:
+          #
+          #     var def = new(tree.mixin.Definition)(name, params, ruleset, cond, variadic);
+          #     if (env.dumpLineNumbers) {
+          #         def.debugInfo = debugInfo;
+          #     }
+          #     return def;
+
+      outputter("TN:")
+      for fileName, info of coverage
+        outputter("SF:#{fileName.replace(/^file:\/\//, '')}")
+        counter = 0
+        nonZero = 0
+        for line, count of info
+          outputter("DA:#{line},#{count}")
+          if count > 0
+            nonZero += 1
+          counter += 1
+
+        outputter("LH:#{nonZero}")
+        outputter("LF:#{counter}")
+
+        outputter("end_of_record")
 
 
-        outputter("TN:")
-        for fileName, info of coverage
-          outputter("SF:#{fileName.replace(/^file:\/\//, '')}")
-          counter = 0
-          nonZero = 0
-          for line, count of info
-            outputter("DA:#{line},#{count}")
-            if count > 0
-              nonZero += 1
-            counter += 1
-
-          outputter("LH:#{nonZero}")
-          outputter("LF:#{counter}")
-
-          outputter("end_of_record")
-
-
-        alert JSON.stringify({type:'PHANTOM_END', code:uncoveredCount})
+      alert JSON.stringify({type:'PHANTOM_END', code:uncoveredCount})
 
   , lessFile, lessFilename)
 
