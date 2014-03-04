@@ -19,6 +19,10 @@ It also:
 
 Check out the in-browser [mocha demo](http://philschatz.github.io/css-coverage.js/test/mocha-demo)! (see _"blanket.js results"_ for the CSS coverage)
 
+### Screenshot
+
+![image](https://f.cloud.github.com/assets/253202/2317246/443ce85c-a348-11e3-97b0-b1246fbdc4ad.png)
+
 
 ## What can I do with `css-coverage`?
 
