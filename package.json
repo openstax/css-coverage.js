@@ -1,6 +1,6 @@
 {
   "name": "css-coverage",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "scripts": {
     "install": "bower install"
   },
@@ -12,7 +12,9 @@
     "grunt-blanket-mocha": "git://github.com/philschatz/grunt-blanket-mocha.git#fixes-for-octokit.js",
     "less": "~1.6",
     "chai": "~1.8.1",
-    "mocha": "~1.14.0"
+    "mocha": "~1.14.0",
+    "grunt-contrib-coffee": "~0.7",
+    "grunt-contrib-concat": "~0.3.0"
   },
   "bin": {
     "css-coverage": "bin/css-coverage"
@@ -20,6 +22,8 @@
   "preferGlobal": true,
   "keywords": [
     "css",
-    "coverage"
+    "coverage",
+    "unit",
+    "test"
   ]
 }

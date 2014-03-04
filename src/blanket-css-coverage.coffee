@@ -1,5 +1,8 @@
-define ['jquery', 'less', 'cs!polyfill-path/index'], ($, less, CSSPolyfills) ->
+if true
 
+  $             = @CSSPolyfills.$
+  less          = @CSSPolyfills.less
+  CSSPolyfills  = @CSSPolyfills
 
   # Instrument the LESS loader so we can get the source file contents for coverage reports
   oldFileLoader = less.Parser.fileLoader
@@ -27,7 +30,7 @@ define ['jquery', 'less', 'cs!polyfill-path/index'], ($, less, CSSPolyfills) ->
       $links = $('link[rel="stylesheet/coverage"]')
       href = $links.attr('href')
       if $links.length != 1 or not href
-        throw new Error('BUG: to use CSS Coverage you must specify exactly one <link rel="stylesheet/css-polyfills" href="..."> element in the HTML file')
+        throw new Error('BUG: to use CSS Coverage you must specify exactly one <link rel="stylesheet/coverage" href="..."> element in the HTML file')
 
       # Do not start Mocha until the CSS file has been loaded.
       # Add the CSS file to the set of files BlanketJS is waiting to load.
