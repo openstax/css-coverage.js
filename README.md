@@ -21,7 +21,7 @@ Check out the in-browser [mocha demo](http://philschatz.github.io/css-coverage.j
 
 ### Screenshot
 
-![image](https://f.cloud.github.com/assets/253202/2317246/443ce85c-a348-11e3-97b0-b1246fbdc4ad.png)
+![image](https://f.cloud.github.com/assets/253202/2317474/4856dbea-a34e-11e3-92ae-70f53672cb93.png)
 
 
 ## What can I do with `css-coverage`?
