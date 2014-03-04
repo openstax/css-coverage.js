@@ -10,7 +10,8 @@ Code coverage tools use Unit Tests to "exercise" the code and show you what is n
 
 It also:
 
-- gives coverage information on your source LESS files, not just the compiled CSS file
+- gives coverage information on your source _LESS_ files, not just the compiled CSS file
+- can instrument files loaded via the RequireJS `less!` plugin
 - provides a command line script to run against individual test files or pages hosted on a website
 
 **TODO:** Coverage currently runs after every test but there will be a function you can call in the middle of a test
