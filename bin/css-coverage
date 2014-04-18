@@ -63,8 +63,7 @@ if (argv.v) {
     options.stdio = 'ignore';
 }
 
-
-var child = spawn('phantomjs', args, options);
+var child = spawn(path.join(__dirname, '../node_modules/.bin/phantomjs'), args, options);
 
 child.on('close', function(code) {
     console.log('Uncovered Count: ' + (code));
