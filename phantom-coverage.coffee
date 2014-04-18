@@ -86,11 +86,10 @@ page.open encodeURI(address), (status) ->
 
   needToKeepWaiting = page.evaluate((lessFile, lessFilename) ->
 
-    $ = @CSSPolyfills.$
     less = @CSSPolyfills.less
     AbstractSelectorVisitor = @CSSPolyfills.AbstractSelectorVisitor
 
-    $root = $('html')
+    rootNode = document.documentElement
 
     # Squirrel away the Mixin Definitions so later we can pull out the line number from the ruleset
     # `debugInfo` gets added to the Ruleset later
@@ -163,9 +162,16 @@ page.open encodeURI(address), (status) ->
 
     coverage = {} # path -> line -> count
 
-    poly.on 'selector.end', (selector, matches, debugInfo) ->
+    poly.on 'selector.end', (selector, debugInfo, matchFn) ->
       fileName = debugInfo.fileName
       line = debugInfo.lineNumber
+      try
+        # sometimes the selector can be a page selector like `@footnotes` that
+        # the browser does not understand. Ignore it.
+        matches = matchFn().length
+      catch e
+        matches = 0
+
       if 0 >= matches
         uncoveredCount += 1
         console.log("Uncovered: {#{selector}}")
@@ -181,7 +187,7 @@ page.open encodeURI(address), (status) ->
     outputter = (msg) ->
       alert JSON.stringify({type:'COVERAGE', msg:"#{msg}\n"})
 
-    poly.run $root, lessFile, lessFilename, (err, newCSS) ->
+    poly.run rootNode, lessFile, lessFilename, (err, newCSS) ->
       throw new Error(err) if err
 
       for mixinDef in mixinDefinitions
