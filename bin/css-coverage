@@ -7,7 +7,7 @@ var path = require('path');
 var childProcess = require('child_process');
 var phantomjs = require('phantomjs-prebuilt');
 var commander = require('commander');
-var sourcemap = require('source-map');
+var SourceMapConsumer = require('source-map').SourceMapConsumer;
 var cssParse = require('css-parse');
 
 
@@ -22,6 +22,7 @@ commander
   .option('--css [path/to/file.css]', 'path to a local CSS file (supports sourcemaps)', parseFileName)
   .option('--lcov [path/to/output.lcov]', 'the LCOV output file', parseFileName)
   .option('--verbose', 'verbose/debugging output')
+  .option('--ignore-source-map', 'disable loading the sourcemap if one is found')
   .parse(process.argv);
 
 // Validate args
@@ -53,7 +54,22 @@ var ast = cssParse(cssStr, { source: commander.css });
 var RULES = ast.stylesheet.rules;
 var cssForPhantom = RULES.map(function(rule) {
   return rule.selectors;
-})
+});
+
+// Check if there is a sourceMappingURL
+var sourceMapConsumer = null;
+if (!commander.ignoreSourceMap && /sourceMappingURL=([^\ ]*)/.exec(cssStr)) {
+  var sourceMapPath = /sourceMappingURL=([^\ ]*)/.exec(cssStr)[1];
+  sourceMapPath = path.resolve(path.dirname(commander.css), sourceMapPath);
+  if (commander.verbose) {
+    console.error('Using sourceMappingURL at ' + sourceMapPath);
+  }
+  var sourceMapStr = fs.readFileSync(sourceMapPath);
+  var sourceMap = JSON.parse(sourceMapStr);
+  sourceMapConsumer = new SourceMapConsumer(sourceMap);
+
+  // sourceMapConsumer.eachMapping(function (m) { console.log(m.generatedLine, m.source); });
+}
 
 
 var phantomCSSJSON = JSON.stringify(cssForPhantom);
@@ -68,7 +84,12 @@ if (commander.verbose) {
 program.stdout.on('data', function(data) {
   data.toString().split('\n').forEach(function (entry) {
     if (entry.trim()) {
-      coverageOutput.push(JSON.parse(entry));
+      try {
+        var parsedJSON = JSON.parse(entry);
+        coverageOutput.push(parsedJSON);
+      } catch (e) {
+        console.error('BUG: Could not parse: ' + entry);
+      }
     }
   });
 });
@@ -95,20 +116,96 @@ function generateLcovStr(coverageOutput) {
   var expected = RULES.length;
   var actual = coverageOutput.length;
   if (expected !== actual) {
-    throw new Error('BUG: count lengths do not match. Expected: ' + expected, ' Actual: ' + actual);
+    throw new Error('BUG: count lengths do not match. Expected: ' + expected + ' Actual: ' + actual);
   }
 
-  var ret = [];
-  ret.push('SF:' + commander.css);
+  var files = {}; // key is filename, value is [{startLine, endLine, count}]
+  var ret = []; // each line in the lcov file. Joined at the end of the function
 
   RULES.forEach(function (rule, i) {
     var count = coverageOutput[i][0];
-    for (var line=rule.position.start.line; line <= rule.position.end.line; line++) {
-      ret.push('DA:' + line + ',' + count);
+
+    // Skip CSS comments
+    if (!rule.selectors) {
+      // if (commander.verbose) {
+      //   console.error('Skipping CSS comment');
+      // }
+      return;
     }
+
+    var fileName;
+    var startLine;
+    var endLine;
+    // Look up the source map (if available)
+    if (sourceMapConsumer) {
+      // From https://github.com/mozilla/source-map#sourcemapconsumerprototypeoriginalpositionforgeneratedposition
+      // Could have been {line: rule.position.start.line, column: rule.positoin.start.column}
+      var origStart = rule.position.start;
+      var origEnd = rule.position.end;
+      var startInfo = sourceMapConsumer.originalPositionFor({line: origStart.line, column: origStart.column-1});
+      var endInfo = sourceMapConsumer.originalPositionFor({line: origEnd.line, column: origEnd.column-2});
+
+
+
+      // bias: SourceMapConsumer.LEAST_UPPER_BOUND or SourceMapConsumer.GREATEST_LOWER_BOUND
+      // When there is no match, startInfo.source is null
+      if (!startInfo.source /*|| startInfo.source !== endInfo.source*/) {
+        console.error('cssStart', JSON.stringify(origStart));
+        console.error('cssEnd', JSON.stringify(origEnd));
+        // console.error('sourceStart', JSON.stringify(startInfo));
+        // console.error('sourceEnd', JSON.stringify(endInfo));
+        throw new Error('BUG: sourcemap might be invalid. Maybe try regenerating it?');
+      } else {
+        if (commander.verbose) {
+          console.error('DEBUG: MATCHED this one', JSON.stringify(startInfo));
+        }
+      }
+      fileName = startInfo.source;
+      startLine = startInfo.line;
+      // endLine = endInfo.line;
+      endLine = startLine;
+
+    } else {
+      fileName = commander.css;
+      startLine = rule.position.start.line;
+      // endLine = rule.position.end.line;
+      endLine = startLine; // Just do the selector so it matches the sourceMap version
+    }
+
+    // add it to the files
+    if (!files[fileName]) {
+      files[fileName] = [];
+    }
+    files[fileName].push({startLine: startLine, endLine: endLine, count: count});
+
   });
 
-  ret.push('end_of_record');
-  return ret.join('\n');
+  for (var fileName in files) {
 
+    var nonZero = 0; // For summary info
+    var allCounter = 0;
+    ret.push('SF:' + path.resolve(path.dirname(sourceMapPath), fileName));
+
+    files[fileName].forEach(function(entry) {
+      var startLine = entry.startLine;
+      var endLine = entry.endLine;
+      var count = entry.count;
+
+      for (var line=startLine; line <= endLine; line++) {
+        ret.push('DA:' + line + ',' + count);
+        if (count > 0) {
+          nonZero += 1;
+        }
+        allCounter += 1;
+      }
+
+    });
+
+    // Include summary info for the file
+    ret.push('LH:' + nonZero);
+    ret.push('LF:' + allCounter);
+    ret.push('end_of_record');
+  }
+
+  return ret.join('\n');
 }
