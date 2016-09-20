@@ -2,70 +2,78 @@
 
 process.bin = process.title = 'css-coverage';
 
+var fs = require('fs');
 var path = require('path');
-var spawn = require('child_process').spawn;
-
-var argv = require('optimist')
-    .usage('Generate coverage info for a CSS/LESS file against an HTML file. Usage: css-coverage -s path/to/style.[less/css] -h path/to/file.html')
-    .options('d', {
-        alias: 'debug'
-    })
-    .options('v', {
-        alias: 'verbose'
-    })
-    .options('s', {
-        demand: true,
-        alias: 'style'
-    })
-    .options('h', {
-        demand: true,
-        alias: 'html'
-    })
-    .options('l', {
-        alias: 'lcov'
-    }).argv;
+var childProcess = require('child_process');
+var phantomjs = require('phantomjs-prebuilt');
+var commander = require('commander');
+var sourcemap = require('source-map');
+var cssParse = require('css-parse');
 
 
-var harnessPath = path.resolve(path.join(__dirname, '..', 'phantom-coverage.coffee'));
-var stylePath = path.resolve(process.cwd(), argv.s);
-var htmlPath = null;
-// Support remote pages
-if (/^https?:\/\//.test(argv.h)) {
-    htmlPath = argv.h;
+function parseFileName(filePath) {
+  return path.resolve(process.cwd(), filePath);
+}
+
+commander
+  // .usage('[options]')
+  .description('Generate coverage info for a CSS file against an HTML file')
+  .option('--html [path/to/file.html]', 'path to a local HTML file', parseFileName) // TODO: Support multiple
+  .option('--css [path/to/file.css]', 'path to a local CSS file (supports sourcemaps)', parseFileName)
+  .option('--lcov [path/to/output.lcov]', 'the LCOV output file', parseFileName)
+  .option('-v, --verbose', 'verbose/debugging output')
+  .parse(process.argv);
+
+// Validate args
+if (!commander.html && !commander.css) {
+  commander.help();
+}
+if (commander.html) {
+  if (!fs.statSync(commander.html).isFile()) {
+    console.error('ERROR: Invalid argument. HTML file not found at ' + commander.html);
+    process.exit(1);
+  }
 } else {
-    htmlPath = path.resolve(process.cwd(), argv.h);
+  console.error('ERROR: Missing argument. At least 1 HTML file must be specified');
+  process.exit(1);
 }
-
-
-var args = [
-  '--web-security=false', // Used for instrumenting a URL instead of a local path
-  harnessPath,
-  path.dirname(harnessPath),
-  stylePath,
-  htmlPath
-];
-
-// Optional LCOV output file
-if (argv.l) {
-    var lcovPath = path.resolve(process.cwd(), argv.l);
-    args.push(lcovPath);
-}
-var options = {
-    cwd: path.dirname(harnessPath)
-};
-
-if (argv.d) {
-    console.log('Running phantomjs ' + args.join(' '));
-}
-if (argv.v) {
-    options.stdio = 'inherit'; // Print the output of PhantomJS
+if (commander.css) {
+  if (!fs.statSync(commander.css).isFile()) {
+    console.error('ERROR: Invalid argument. CSS file not found at ' + commander.css);
+    process.exit(1);
+  }
 } else {
-    options.stdio = 'ignore';
+  console.error('ERROR: Missing argument. A CSS file must be specified');
+  process.exit(1);
 }
 
-var child = spawn(path.join(__dirname, '../node_modules/.bin/phantomjs'), args, options);
+var cssStr = fs.readFileSync(commander.css, 'utf8');
+var ast = cssParse(cssStr, { source: commander.css });
 
-child.on('close', function(code) {
-    console.log('Uncovered Count: ' + (code));
-    process.exit(code);
+var cssForPhantom = ast.stylesheet.rules.map(function(rule) {
+  return rule.selectors;
+})
+
+
+var phantomCSSJSON = JSON.stringify(cssForPhantom);
+
+var coverageOutput = [];
+var program = phantomjs.exec(path.resolve(__dirname, '../phantom-coverage.js'), path.resolve(__dirname, '..'), commander.html, phantomCSSJSON);
+program.stderr.pipe(process.stderr);
+program.stdout.pipe(process.stdout);
+// // Collect the coverage info that is written by the phantom script.
+// program.stdout.on('data', function(data) {
+//   coverageOutput.push(data.toString());
+// });
+program.on('exit', function(code) {
+  // if success, then write out the LCOV file
+  if (code === 0) {
+    if (commander.lcov) {
+      fs.writeFileSync(commander.lcov, coverageOutput.join('\n'));
+    } else {
+      console.log(coverageOutput); // TODO: .join('aksjdh')
+    }
+  }
+  // do something on end
+  process.exit(code);
 });
