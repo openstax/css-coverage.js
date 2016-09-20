@@ -16,6 +16,7 @@
     "css",
     "coverage",
     "unit",
-    "test"
+    "test",
+    "source-map"
   ]
 }
