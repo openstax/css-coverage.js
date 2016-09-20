@@ -21,7 +21,7 @@ commander
   .option('--html [path/to/file.html]', 'path to a local HTML file', parseFileName) // TODO: Support multiple
   .option('--css [path/to/file.css]', 'path to a local CSS file (supports sourcemaps)', parseFileName)
   .option('--lcov [path/to/output.lcov]', 'the LCOV output file', parseFileName)
-  .option('-v, --verbose', 'verbose/debugging output')
+  .option('--verbose', 'verbose/debugging output')
   .parse(process.argv);
 
 // Validate args
@@ -50,7 +50,8 @@ if (commander.css) {
 var cssStr = fs.readFileSync(commander.css, 'utf8');
 var ast = cssParse(cssStr, { source: commander.css });
 
-var cssForPhantom = ast.stylesheet.rules.map(function(rule) {
+var RULES = ast.stylesheet.rules;
+var cssForPhantom = RULES.map(function(rule) {
   return rule.selectors;
 })
 
@@ -60,20 +61,54 @@ var phantomCSSJSON = JSON.stringify(cssForPhantom);
 var coverageOutput = [];
 var program = phantomjs.exec(path.resolve(__dirname, '../phantom-coverage.js'), path.resolve(__dirname, '..'), commander.html, phantomCSSJSON);
 program.stderr.pipe(process.stderr);
-program.stdout.pipe(process.stdout);
-// // Collect the coverage info that is written by the phantom script.
-// program.stdout.on('data', function(data) {
-//   coverageOutput.push(data.toString());
-// });
+if (commander.verbose) {
+  program.stdout.pipe(process.stderr);
+}
+// Collect the coverage info that is written by the phantom script.
+program.stdout.on('data', function(data) {
+  data.toString().split('\n').forEach(function (entry) {
+    if (entry.trim()) {
+      coverageOutput.push(JSON.parse(entry));
+    }
+  });
+});
 program.on('exit', function(code) {
   // if success, then write out the LCOV file
   if (code === 0) {
+
+    var lcovStr = generateLcovStr(coverageOutput);
     if (commander.lcov) {
-      fs.writeFileSync(commander.lcov, coverageOutput.join('\n'));
+      fs.writeFileSync(commander.lcov, lcovStr);
     } else {
-      console.log(coverageOutput); // TODO: .join('aksjdh')
+      console.log(lcovStr);
     }
   }
   // do something on end
   process.exit(code);
 });
+
+
+function generateLcovStr(coverageOutput) {
+  // coverageOutput is of the form:
+  // [[1, ['body']], [400, ['div.foo']]]
+  // where each entry is a pair of count, selectors
+  var expected = RULES.length;
+  var actual = coverageOutput.length;
+  if (expected !== actual) {
+    throw new Error('BUG: count lengths do not match. Expected: ' + expected, ' Actual: ' + actual);
+  }
+
+  var ret = [];
+  ret.push('SF:' + commander.css);
+
+  RULES.forEach(function (rule, i) {
+    var count = coverageOutput[i][0];
+    for (var line=rule.position.start.line; line <= rule.position.end.line; line++) {
+      ret.push('DA:' + line + ',' + count);
+    }
+  });
+
+  ret.push('end_of_record');
+  return ret.join('\n');
+
+}

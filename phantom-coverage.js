@@ -26,7 +26,7 @@ page.open('file://' + htmlPath, function(status) {
           selectors.forEach(function(selector) {
             count += window.Sizzle(selector).length;
           });
-          console.log('Count: ' + count + ' selector: ' + selectors);
+          console.log(JSON.stringify([count, selectors]));
         });
       }, cssJSON);
       phantom.exit();

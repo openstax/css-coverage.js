@@ -1,3 +1,9 @@
+# Example
+
+`./bin/css-coverage --html ./test/test.html --css ./test/test.css --verbose`
+
+# Notes
+
 Each entry needs to contain:
 
 `selectors` (id is not necessary; the index is the id)
