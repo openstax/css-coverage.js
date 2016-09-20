@@ -17,12 +17,13 @@ function parseFileName(filePath) {
 
 commander
   // .usage('[options]')
-  .description('Generate coverage info for a CSS file against an HTML file')
+  .description('Generate coverage info for a CSS file against an HTML file. This supports loading sourcemaps by using the sourceMappingURL=FILENAME.map CSS comment')
   .option('--html [path/to/file.html]', 'path to a local HTML file', parseFileName) // TODO: Support multiple
-  .option('--css [path/to/file.css]', 'path to a local CSS file (supports sourcemaps)', parseFileName)
+  .option('--css [path/to/file.css]', 'path to a local CSS file', parseFileName)
   .option('--lcov [path/to/output.lcov]', 'the LCOV output file', parseFileName)
   .option('--verbose', 'verbose/debugging output')
   .option('--ignore-source-map', 'disable loading the sourcemap if one is found')
+  .option('--cover-declarations', 'try to cover CSS declarations as well as selectors (best-effort, difficult with sourcemaps)')
   .parse(process.argv);
 
 // Validate args
@@ -48,8 +49,8 @@ if (commander.css) {
   process.exit(1);
 }
 
-var cssStr = fs.readFileSync(commander.css, 'utf8');
-var ast = cssParse(cssStr, { source: commander.css });
+var CSS_STR = fs.readFileSync(commander.css, 'utf8');
+var ast = cssParse(CSS_STR, { source: commander.css });
 
 var RULES = ast.stylesheet.rules;
 var cssForPhantom = RULES.map(function(rule) {
@@ -58,8 +59,8 @@ var cssForPhantom = RULES.map(function(rule) {
 
 // Check if there is a sourceMappingURL
 var sourceMapConsumer = null;
-if (!commander.ignoreSourceMap && /sourceMappingURL=([^\ ]*)/.exec(cssStr)) {
-  var sourceMapPath = /sourceMappingURL=([^\ ]*)/.exec(cssStr)[1];
+if (!commander.ignoreSourceMap && /sourceMappingURL=([^\ ]*)/.exec(CSS_STR)) {
+  var sourceMapPath = /sourceMappingURL=([^\ ]*)/.exec(CSS_STR)[1];
   sourceMapPath = path.resolve(path.dirname(commander.css), sourceMapPath);
   if (commander.verbose) {
     console.error('Using sourceMappingURL at ' + sourceMapPath);
@@ -122,6 +123,16 @@ function generateLcovStr(coverageOutput) {
   var files = {}; // key is filename, value is [{startLine, endLine, count}]
   var ret = []; // each line in the lcov file. Joined at the end of the function
 
+  var cssLines = CSS_STR.split('\n');
+
+  function addCoverage(fileName, count, startLine, endLine) {
+    // add it to the files
+    if (!files[fileName]) {
+      files[fileName] = [];
+    }
+    files[fileName].push({startLine: startLine, endLine: endLine, count: count});
+  }
+
   RULES.forEach(function (rule, i) {
     var count = coverageOutput[i][0];
 
@@ -142,41 +153,72 @@ function generateLcovStr(coverageOutput) {
       // Could have been {line: rule.position.start.line, column: rule.positoin.start.column}
       var origStart = rule.position.start;
       var origEnd = rule.position.end;
-      var startInfo = sourceMapConsumer.originalPositionFor({line: origStart.line, column: origStart.column-1});
-      var endInfo = sourceMapConsumer.originalPositionFor({line: origEnd.line, column: origEnd.column-2});
 
+      if (commander.coverDeclarations) {
 
-
-      // bias: SourceMapConsumer.LEAST_UPPER_BOUND or SourceMapConsumer.GREATEST_LOWER_BOUND
-      // When there is no match, startInfo.source is null
-      if (!startInfo.source /*|| startInfo.source !== endInfo.source*/) {
-        console.error('cssStart', JSON.stringify(origStart));
-        console.error('cssEnd', JSON.stringify(origEnd));
-        // console.error('sourceStart', JSON.stringify(startInfo));
-        // console.error('sourceEnd', JSON.stringify(endInfo));
-        throw new Error('BUG: sourcemap might be invalid. Maybe try regenerating it?');
-      } else {
-        if (commander.verbose) {
-          console.error('DEBUG: MATCHED this one', JSON.stringify(startInfo));
+        // Loop over every character between origStart and origEnd to make sure they are covered
+        // TODO: Do not duplicate-count lines just because this code runs character-by-character
+        var parseColumn = origStart.column;
+        for (var parseLine=origStart.line; parseLine <= origEnd.line; parseLine++) {
+          var curLineText = cssLines[parseLine - 1];
+          for (var curColumn=parseColumn-1; curColumn < curLineText.length; curColumn++) {
+            var info = sourceMapConsumer.originalPositionFor({line: parseLine, column: curColumn});
+            // stop processing when we hit origEnd
+            if (parseLine === origEnd.line && curColumn >= origEnd.column) {
+              break;
+            }
+            if (/\s/.test(curLineText[curColumn])) {
+              continue;
+            }
+            // console.error('PHIL ', curLineText[curColumn], {line: parseLine, column: curColumn}, info);
+            if (info.source) {
+              addCoverage(info.source, count, info.line, info.line);
+            } else {
+              if (commander.verbose) {
+                console.error('BUG: Could not look up source for this range:');
+                console.error('origStart', origStart);
+                console.error('origEnd', origEnd);
+                console.error('currIndexes', {line: parseLine, column: curColumn});
+              }
+            }
+          }
+          parseColumn = 1;
         }
+
+
+      } else {
+        // Just cover the selectors
+        var startInfo = sourceMapConsumer.originalPositionFor({line: origStart.line, column: origStart.column-1});
+        var endInfo = sourceMapConsumer.originalPositionFor({line: origEnd.line, column: origEnd.column-2});
+
+        // When there is no match, startInfo.source is null
+        if (!startInfo.source /*|| startInfo.source !== endInfo.source*/) {
+          console.error('cssStart', JSON.stringify(origStart));
+          console.error('cssEnd', JSON.stringify(origEnd));
+          // console.error('sourceStart', JSON.stringify(startInfo));
+          // console.error('sourceEnd', JSON.stringify(endInfo));
+          throw new Error('BUG: sourcemap might be invalid. Maybe try regenerating it?');
+        } else {
+          if (commander.verbose) {
+            console.error('DEBUG: MATCHED this one', JSON.stringify(startInfo));
+          }
+        }
+
+        addCoverage(startInfo.source, count, startInfo.line, startInfo.line);
       }
-      fileName = startInfo.source;
-      startLine = startInfo.line;
-      // endLine = endInfo.line;
-      endLine = startLine;
+
 
     } else {
+      // No sourceMap available
       fileName = commander.css;
       startLine = rule.position.start.line;
-      // endLine = rule.position.end.line;
-      endLine = startLine; // Just do the selector so it matches the sourceMap version
+      if (commander.coverDeclarations) {
+        endLine = rule.position.end.line;
+      } else {
+        endLine = startLine; // Just do the selector (startLine)
+      }
+      addCoverage(fileName, count, startLine, endLine);
     }
-
-    // add it to the files
-    if (!files[fileName]) {
-      files[fileName] = [];
-    }
-    files[fileName].push({startLine: startLine, endLine: endLine, count: count});
 
   });
 
