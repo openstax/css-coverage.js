@@ -1,16 +1,19 @@
-.class1 {
+body .class1 {
   color: blue;
   background-color: red;
   color: green;
-  background-color: white;
-}
-
-.class2 {
+  background-color: white; }
+body .class2 {
   border: 1px solid;
-  move-to: footer;
-}
+  move-to: footer; }
 
-.unused-class { display: none; }
-p > div.another-unused-class { display: none; }
+.unused-class {
+  display: none; }
 
-.footer { content: pending(footer); }
+p > div.another-unused-class {
+  display: none; }
+
+.footer {
+  content: pending(footer); }
+
+/*# sourceMappingURL=test.css.map */

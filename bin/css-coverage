@@ -2,70 +2,252 @@
 
 process.bin = process.title = 'css-coverage';
 
+var fs = require('fs');
 var path = require('path');
-var spawn = require('child_process').spawn;
-
-var argv = require('optimist')
-    .usage('Generate coverage info for a CSS/LESS file against an HTML file. Usage: css-coverage -s path/to/style.[less/css] -h path/to/file.html')
-    .options('d', {
-        alias: 'debug'
-    })
-    .options('v', {
-        alias: 'verbose'
-    })
-    .options('s', {
-        demand: true,
-        alias: 'style'
-    })
-    .options('h', {
-        demand: true,
-        alias: 'html'
-    })
-    .options('l', {
-        alias: 'lcov'
-    }).argv;
+var childProcess = require('child_process');
+var phantomjs = require('phantomjs-prebuilt');
+var commander = require('commander');
+var SourceMapConsumer = require('source-map').SourceMapConsumer;
+var cssParse = require('css-parse');
 
 
-var harnessPath = path.resolve(path.join(__dirname, '..', 'phantom-coverage.coffee'));
-var stylePath = path.resolve(process.cwd(), argv.s);
-var htmlPath = null;
-// Support remote pages
-if (/^https?:\/\//.test(argv.h)) {
-    htmlPath = argv.h;
+function parseFileName(filePath) {
+  return path.resolve(process.cwd(), filePath);
+}
+
+commander
+  // .usage('[options]')
+  .description('Generate coverage info for a CSS file against an HTML file. This supports loading sourcemaps by using the sourceMappingURL=FILENAME.map CSS comment')
+  .option('--html [path/to/file.html]', 'path to a local HTML file', parseFileName) // TODO: Support multiple
+  .option('--css [path/to/file.css]', 'path to a local CSS file', parseFileName)
+  .option('--lcov [path/to/output.lcov]', 'the LCOV output file', parseFileName)
+  .option('--verbose', 'verbose/debugging output')
+  .option('--ignore-source-map', 'disable loading the sourcemap if one is found')
+  .option('--cover-declarations', 'try to cover CSS declarations as well as selectors (best-effort, difficult with sourcemaps)')
+  .parse(process.argv);
+
+// Validate args
+if (!commander.html && !commander.css) {
+  commander.help();
+}
+if (commander.html) {
+  if (!fs.statSync(commander.html).isFile()) {
+    console.error('ERROR: Invalid argument. HTML file not found at ' + commander.html);
+    process.exit(1);
+  }
 } else {
-    htmlPath = path.resolve(process.cwd(), argv.h);
+  console.error('ERROR: Missing argument. At least 1 HTML file must be specified');
+  process.exit(1);
 }
-
-
-var args = [
-  '--web-security=false', // Used for instrumenting a URL instead of a local path
-  harnessPath,
-  path.dirname(harnessPath),
-  stylePath,
-  htmlPath
-];
-
-// Optional LCOV output file
-if (argv.l) {
-    var lcovPath = path.resolve(process.cwd(), argv.l);
-    args.push(lcovPath);
-}
-var options = {
-    cwd: path.dirname(harnessPath)
-};
-
-if (argv.d) {
-    console.log('Running phantomjs ' + args.join(' '));
-}
-if (argv.v) {
-    options.stdio = 'inherit'; // Print the output of PhantomJS
+if (commander.css) {
+  if (!fs.statSync(commander.css).isFile()) {
+    console.error('ERROR: Invalid argument. CSS file not found at ' + commander.css);
+    process.exit(1);
+  }
 } else {
-    options.stdio = 'ignore';
+  console.error('ERROR: Missing argument. A CSS file must be specified');
+  process.exit(1);
 }
 
-var child = spawn(path.join(__dirname, '../node_modules/.bin/phantomjs'), args, options);
+var CSS_STR = fs.readFileSync(commander.css, 'utf8');
+var ast = cssParse(CSS_STR, { source: commander.css });
 
-child.on('close', function(code) {
-    console.log('Uncovered Count: ' + (code));
-    process.exit(code);
+var RULES = ast.stylesheet.rules;
+var cssForPhantom = RULES.map(function(rule) {
+  return rule.selectors;
 });
+
+// Check if there is a sourceMappingURL
+var sourceMapConsumer = null;
+if (!commander.ignoreSourceMap && /sourceMappingURL=([^\ ]*)/.exec(CSS_STR)) {
+  var sourceMapPath = /sourceMappingURL=([^\ ]*)/.exec(CSS_STR)[1];
+  sourceMapPath = path.resolve(path.dirname(commander.css), sourceMapPath);
+  if (commander.verbose) {
+    console.error('Using sourceMappingURL at ' + sourceMapPath);
+  }
+  var sourceMapStr = fs.readFileSync(sourceMapPath);
+  var sourceMap = JSON.parse(sourceMapStr);
+  sourceMapConsumer = new SourceMapConsumer(sourceMap);
+
+  // sourceMapConsumer.eachMapping(function (m) { console.log(m.generatedLine, m.source); });
+}
+
+
+var phantomCSSJSON = JSON.stringify(cssForPhantom);
+
+var coverageOutput = [];
+var program = phantomjs.exec(path.resolve(__dirname, '../phantom-coverage.js'), path.resolve(__dirname, '..'), commander.html, phantomCSSJSON);
+program.stderr.pipe(process.stderr);
+if (commander.verbose) {
+  program.stdout.pipe(process.stderr);
+}
+// Collect the coverage info that is written by the phantom script.
+program.stdout.on('data', function(data) {
+  data.toString().split('\n').forEach(function (entry) {
+    if (entry.trim()) {
+      try {
+        var parsedJSON = JSON.parse(entry);
+        coverageOutput.push(parsedJSON);
+      } catch (e) {
+        console.error('BUG: Could not parse: ' + entry);
+      }
+    }
+  });
+});
+program.on('exit', function(code) {
+  // if success, then write out the LCOV file
+  if (code === 0) {
+
+    var lcovStr = generateLcovStr(coverageOutput);
+    if (commander.lcov) {
+      fs.writeFileSync(commander.lcov, lcovStr);
+    } else {
+      console.log(lcovStr);
+    }
+  }
+  // do something on end
+  process.exit(code);
+});
+
+
+function generateLcovStr(coverageOutput) {
+  // coverageOutput is of the form:
+  // [[1, ['body']], [400, ['div.foo']]]
+  // where each entry is a pair of count, selectors
+  var expected = RULES.length;
+  var actual = coverageOutput.length;
+  if (expected !== actual) {
+    throw new Error('BUG: count lengths do not match. Expected: ' + expected + ' Actual: ' + actual);
+  }
+
+  var files = {}; // key is filename, value is [{startLine, endLine, count}]
+  var ret = []; // each line in the lcov file. Joined at the end of the function
+
+  var cssLines = CSS_STR.split('\n');
+
+  function addCoverage(fileName, count, startLine, endLine) {
+    // add it to the files
+    if (!files[fileName]) {
+      files[fileName] = [];
+    }
+    files[fileName].push({startLine: startLine, endLine: endLine, count: count});
+  }
+
+  RULES.forEach(function (rule, i) {
+    var count = coverageOutput[i][0];
+
+    // Skip CSS comments
+    if (!rule.selectors) {
+      // if (commander.verbose) {
+      //   console.error('Skipping CSS comment');
+      // }
+      return;
+    }
+
+    var fileName;
+    var startLine;
+    var endLine;
+    // Look up the source map (if available)
+    if (sourceMapConsumer) {
+      // From https://github.com/mozilla/source-map#sourcemapconsumerprototypeoriginalpositionforgeneratedposition
+      // Could have been {line: rule.position.start.line, column: rule.positoin.start.column}
+      var origStart = rule.position.start;
+      var origEnd = rule.position.end;
+
+      if (commander.coverDeclarations) {
+
+        // Loop over every character between origStart and origEnd to make sure they are covered
+        // TODO: Do not duplicate-count lines just because this code runs character-by-character
+        var parseColumn = origStart.column;
+        for (var parseLine=origStart.line; parseLine <= origEnd.line; parseLine++) {
+          var curLineText = cssLines[parseLine - 1];
+          for (var curColumn=parseColumn-1; curColumn < curLineText.length; curColumn++) {
+            var info = sourceMapConsumer.originalPositionFor({line: parseLine, column: curColumn});
+            // stop processing when we hit origEnd
+            if (parseLine === origEnd.line && curColumn >= origEnd.column) {
+              break;
+            }
+            if (/\s/.test(curLineText[curColumn])) {
+              continue;
+            }
+            // console.error('PHIL ', curLineText[curColumn], {line: parseLine, column: curColumn}, info);
+            if (info.source) {
+              addCoverage(info.source, count, info.line, info.line);
+            } else {
+              if (commander.verbose) {
+                console.error('BUG: Could not look up source for this range:');
+                console.error('origStart', origStart);
+                console.error('origEnd', origEnd);
+                console.error('currIndexes', {line: parseLine, column: curColumn});
+              }
+            }
+          }
+          parseColumn = 1;
+        }
+
+
+      } else {
+        // Just cover the selectors
+        var startInfo = sourceMapConsumer.originalPositionFor({line: origStart.line, column: origStart.column-1});
+        var endInfo = sourceMapConsumer.originalPositionFor({line: origEnd.line, column: origEnd.column-2});
+
+        // When there is no match, startInfo.source is null
+        if (!startInfo.source /*|| startInfo.source !== endInfo.source*/) {
+          console.error('cssStart', JSON.stringify(origStart));
+          console.error('cssEnd', JSON.stringify(origEnd));
+          // console.error('sourceStart', JSON.stringify(startInfo));
+          // console.error('sourceEnd', JSON.stringify(endInfo));
+          throw new Error('BUG: sourcemap might be invalid. Maybe try regenerating it?');
+        } else {
+          if (commander.verbose) {
+            console.error('DEBUG: MATCHED this one', JSON.stringify(startInfo));
+          }
+        }
+
+        addCoverage(startInfo.source, count, startInfo.line, startInfo.line);
+      }
+
+
+    } else {
+      // No sourceMap available
+      fileName = commander.css;
+      startLine = rule.position.start.line;
+      if (commander.coverDeclarations) {
+        endLine = rule.position.end.line;
+      } else {
+        endLine = startLine; // Just do the selector (startLine)
+      }
+      addCoverage(fileName, count, startLine, endLine);
+    }
+
+  });
+
+  for (var fileName in files) {
+
+    var nonZero = 0; // For summary info
+    var allCounter = 0;
+    ret.push('SF:' + path.resolve(path.dirname(sourceMapPath), fileName));
+
+    files[fileName].forEach(function(entry) {
+      var startLine = entry.startLine;
+      var endLine = entry.endLine;
+      var count = entry.count;
+
+      for (var line=startLine; line <= endLine; line++) {
+        ret.push('DA:' + line + ',' + count);
+        if (count > 0) {
+          nonZero += 1;
+        }
+        allCounter += 1;
+      }
+
+    });
+
+    // Include summary info for the file
+    ret.push('LH:' + nonZero);
+    ret.push('LF:' + allCounter);
+    ret.push('end_of_record');
+  }
+
+  return ret.join('\n');
+}
