@@ -22,6 +22,8 @@ page.open('file://' + htmlPath, function(status) {
         // This is the meat of the code. It runs inside the browser
 
 
+        var rules = JSON.parse(cssJSON);
+
         // Add default do-nothing for selectors used in cnx-easybake
         var PSEUDOS = ['deferred', 'pass', 'match', 'after', 'before', 'outside'];
         PSEUDOS.forEach(function(pseudo) {
@@ -30,7 +32,6 @@ page.open('file://' + htmlPath, function(status) {
           window.Sizzle.selectors.pseudos[pseudo] = function(elem) { return elem; };
         });
 
-        var rules = JSON.parse(cssJSON);
         rules.forEach(function(selectors) {
           var count = 0;
           // selectors could be null (maybe if it's a comment?)

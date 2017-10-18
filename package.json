@@ -2,11 +2,11 @@
   "name": "css-coverage",
   "version": "0.1.0",
   "dependencies": {
-    "commander": "^2.9.0",
-    "css-parse": "^2.0.0",
-    "phantomjs-prebuilt": "^2.1.12",
-    "sizzle": "^2.3.3",
-    "source-map": "^0.5.6"
+    "commander": "2.9.0",
+    "css-parse": "2.0.0",
+    "phantomjs-prebuilt": "2.1.12",
+    "sizzle": "2.3.3",
+    "source-map": "0.5.6"
   },
   "bin": {
     "css-coverage": "bin/css-coverage"
@@ -18,5 +18,9 @@
     "unit",
     "test",
     "source-map"
-  ]
+  ],
+  "main": "index.js",
+  "repository": "https://github.com/philschatz/css-coverage.js.git",
+  "author": "Philip Schatz <phil@cnx.org>",
+  "license": "MIT"
 }
