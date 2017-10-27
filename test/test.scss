@@ -25,3 +25,10 @@ p {
 .footer {
   content: pending(footer);
 }
+
+@page :left {
+  color: red;
+  @footnotes {
+    color: red;
+  }
+}

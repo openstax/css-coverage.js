@@ -3,6 +3,7 @@ body .class1 {
   background-color: red;
   color: green;
   background-color: white; }
+
 body .class2 {
   border: 1px solid;
   move-to: footer; }
@@ -15,5 +16,10 @@ p > div.another-unused-class {
 
 .footer {
   content: pending(footer); }
+
+@page :left {
+  color: red;
+  @footnotes {
+    color: red; } }
 
 /*# sourceMappingURL=test.css.map */

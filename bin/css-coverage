@@ -8,7 +8,7 @@ var childProcess = require('child_process');
 var phantomjs = require('phantomjs-prebuilt');
 var commander = require('commander');
 var SourceMapConsumer = require('source-map').SourceMapConsumer;
-var cssParse = require('css-parse');
+var cssTree = require('css-tree');
 
 
 function parseFileName(filePath) {
@@ -50,12 +50,21 @@ if (commander.css) {
 }
 
 var CSS_STR = fs.readFileSync(commander.css, 'utf8');
-var ast = cssParse(CSS_STR, { source: commander.css });
+var ast = cssTree.parse(CSS_STR, { filename: commander.css, positions: true });
 
-var RULES = ast.stylesheet.rules;
-var cssForPhantom = RULES.map(function(rule) {
-  return rule.selectors;
-});
+var cssForPhantom = [];
+cssTree.walkRules(ast, (rule) => {
+  if ('Atrule' === rule.type) {
+    // ignore
+  } else if ('Rule' === rule.type) {
+    var converted = rule.prelude.children.map((selector) => {
+      return cssTree.translate(selector)
+    })
+    cssForPhantom.push(converted)
+  } else {
+    throw new Error('BUG: Forgot to handle this rule subtype: ' + rule.type)
+  }
+})
 
 // Check if there is a sourceMappingURL
 var sourceMapConsumer = null;
@@ -114,7 +123,7 @@ function generateLcovStr(coverageOutput) {
   // coverageOutput is of the form:
   // [[1, ['body']], [400, ['div.foo']]]
   // where each entry is a pair of count, selectors
-  var expected = RULES.length;
+  var expected = cssForPhantom.length;
   var actual = coverageOutput.length;
   if (expected !== actual) {
     throw new Error('BUG: count lengths do not match. Expected: ' + expected + ' Actual: ' + actual);
@@ -133,17 +142,15 @@ function generateLcovStr(coverageOutput) {
     files[fileName].push({startLine: startLine, endLine: endLine, count: count});
   }
 
-  RULES.forEach(function (rule, i) {
-    var count = coverageOutput[i][0];
-
-    // Skip CSS comments
-    if (!rule.selectors) {
-      // if (commander.verbose) {
-      //   console.error('Skipping CSS comment');
-      // }
-      return;
+  var i = -1;
+  cssTree.walkRules(ast, (rule, item, list) => {
+    if ('Rule' !== rule.type) {
+      return // Skip AtRules
     }
 
+    i += 1;
+
+    var count = coverageOutput[i][0];
     var fileName;
     var startLine;
     var endLine;
@@ -151,8 +158,8 @@ function generateLcovStr(coverageOutput) {
     if (sourceMapConsumer) {
       // From https://github.com/mozilla/source-map#sourcemapconsumerprototypeoriginalpositionforgeneratedposition
       // Could have been {line: rule.position.start.line, column: rule.positoin.start.column}
-      var origStart = rule.position.start;
-      var origEnd = rule.position.end;
+      var origStart = rule.loc.start;
+      var origEnd = rule.loc.end;
 
       if (commander.coverDeclarations) {
 
@@ -211,9 +218,9 @@ function generateLcovStr(coverageOutput) {
     } else {
       // No sourceMap available
       fileName = commander.css;
-      startLine = rule.position.start.line;
+      startLine = rule.loc.start.line;
       if (commander.coverDeclarations) {
-        endLine = rule.position.end.line;
+        endLine = rule.loc.end.line;
       } else {
         endLine = startLine; // Just do the selector (startLine)
       }
@@ -226,7 +233,8 @@ function generateLcovStr(coverageOutput) {
 
     var nonZero = 0; // For summary info
     var allCounter = 0;
-    ret.push('SF:' + path.resolve(path.dirname(sourceMapPath), fileName));
+    var fileNamePrefix = sourceMapPath ? path.dirname(sourceMapPath) : '';
+    ret.push('SF:' + path.resolve(fileNamePrefix, fileName));
 
     files[fileName].forEach(function(entry) {
       var startLine = entry.startLine;
