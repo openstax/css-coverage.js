@@ -3,12 +3,9 @@ var system = require('system');
 // var fs = require('fs');
 var page = require('webpage').create();
 
-var rootPath = system.args[1];
+var sizzlePath = system.args[1];
 var htmlPath = system.args[2];
 var cssJSON = system.args[3];
-
-var sizzlePath = rootPath + '/node_modules/sizzle/dist/sizzle.js';
-
 
 // redirect all `console.log` messages to stdout because the LCOV file will be sent to stdout
 page.onConsoleMessage = function(msg) {

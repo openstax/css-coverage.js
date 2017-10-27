@@ -92,7 +92,7 @@ if (!commander.ignoreSourceMap && /sourceMappingURL=([^\ ]*)/.exec(CSS_STR)) {
 var phantomCSSJSON = JSON.stringify(cssForPhantom);
 
 var coverageOutput = [];
-var program = phantomjs.exec(path.resolve(__dirname, '../phantom-coverage.js'), path.resolve(__dirname, '..'), commander.html, phantomCSSJSON);
+var program = phantomjs.exec(path.resolve(__dirname, '../phantom-coverage.js'), require.resolve('sizzle'), commander.html, phantomCSSJSON);
 program.stderr.pipe(process.stderr);
 if (commander.verbose) {
   program.stdout.pipe(process.stderr);
