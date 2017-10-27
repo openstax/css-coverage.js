@@ -117,7 +117,7 @@ cryptiles@2.x.x:
   dependencies:
     boom "2.x.x"
 
-css-tree@^1.0.0-alpha25:
+css-tree@1.0.0-alpha25:
   version "1.0.0-alpha25"
   resolved "https://registry.yarnpkg.com/css-tree/-/css-tree-1.0.0-alpha25.tgz#1bbfabfbf6eeef4f01d9108ff2edd0be2fe35597"
   dependencies:
