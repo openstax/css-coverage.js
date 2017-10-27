@@ -50,7 +50,14 @@ if (commander.css) {
 }
 
 var CSS_STR = fs.readFileSync(commander.css, 'utf8');
-var ast = cssTree.parse(CSS_STR, { filename: commander.css, positions: true });
+var ast;
+try {
+  ast = cssTree.parse(CSS_STR, { filename: commander.css, positions: true });
+} catch (e) {
+  // CssSyntaxError
+  console.error('CssSyntaxError: ' + e.message + ' @ ' + e.line + ':' + e.column);
+  throw e;
+}
 
 var cssForPhantom = [];
 cssTree.walkRules(ast, (rule) => {
