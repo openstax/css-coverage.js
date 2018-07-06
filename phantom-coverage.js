@@ -47,7 +47,8 @@ page.open('file://' + htmlPath, function(status) {
                 var matches = window.Sizzle(selector);
                 count += matches.length;
               } catch (e) {
-                console.error('BUG: Problem matching selector: ' + selector)
+                // If we cannot select it then we cannot cover it
+                console.warn('Skipping selector that could not be matched using SizzleJS: ' + selector)
               }
             });
           }

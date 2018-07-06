@@ -105,7 +105,7 @@ program.stdout.on('data', function(data) {
         var parsedJSON = JSON.parse(entry);
         coverageOutput.push(parsedJSON);
       } catch (e) {
-        console.error('BUG: Could not parse: ' + entry);
+        console.warn(entry);
       }
     }
   });
