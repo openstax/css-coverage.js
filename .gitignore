@@ -5,3 +5,5 @@
 
 # HTML Coverage Report
 /coverage/
+
+.env

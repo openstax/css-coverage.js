@@ -1,12 +1,20 @@
 {
   "name": "css-coverage",
   "version": "0.2.6",
+  "scripts": {
+    "test": "standard --fix"
+  },
   "dependencies": {
+    "bunyan": "^1.8.12",
+    "bunyan-format": "^0.2.1",
     "commander": "2.16.0",
     "css-tree": "1.0.0-alpha25",
+    "dotenv": "^6.0.0",
     "phantomjs-prebuilt": "2.1.16",
+    "puppeteer": "^1.5.0",
     "sizzle": "2.3.3",
-    "source-map": "0.5.6"
+    "source-map": "0.5.6",
+    "standard": "^11.0.1"
   },
   "bin": {
     "css-coverage": "bin/css-coverage"
