@@ -1,9 +1,9 @@
-var fs = require('fs')
-var path = require('path')
-var puppeteer = require('puppeteer')
-var commander = require('commander')
-var SourceMapConsumer = require('source-map').SourceMapConsumer
-var cssTree = require('css-tree')
+const fs = require('fs')
+const path = require('path')
+const puppeteer = require('puppeteer')
+const commander = require('commander')
+const SourceMapConsumer = require('source-map').SourceMapConsumer
+const cssTree = require('css-tree')
 require('dotenv').config()
 
 const bunyan = require('bunyan')
@@ -58,8 +58,8 @@ if (commander.css) {
   process.exit(STATUS_CODE.ERROR)
 }
 
-var CSS_STR = fs.readFileSync(commander.css, 'utf8')
-var ast
+const CSS_STR = fs.readFileSync(commander.css, 'utf8')
+let ast
 try {
   ast = cssTree.parse(CSS_STR, { filename: commander.css, positions: true })
 } catch (e) {
@@ -68,12 +68,12 @@ try {
   throw e
 }
 
-var cssRules = []
+const cssRules = []
 cssTree.walkRules(ast, (rule) => {
   if (rule.type === 'Atrule') {
     // ignore
   } else if (rule.type === 'Rule') {
-    var converted = rule.prelude.children.map((selector) => {
+    const converted = rule.prelude.children.map((selector) => {
       return cssTree.translate(selector)
     })
     cssRules.push(converted)
@@ -83,15 +83,16 @@ cssTree.walkRules(ast, (rule) => {
 })
 
 // Check if there is a sourceMappingURL
-var sourceMapConsumer = null
+let sourceMapConsumer = null
+let sourceMapPath
 if (!commander.ignoreSourceMap && /sourceMappingURL=([^ ]*)/.exec(CSS_STR)) {
-  var sourceMapPath = /sourceMappingURL=([^ ]*)/.exec(CSS_STR)[1]
+  sourceMapPath = /sourceMappingURL=([^ ]*)/.exec(CSS_STR)[1]
   sourceMapPath = path.resolve(path.dirname(commander.css), sourceMapPath)
   if (commander.verbose) {
     console.error('Using sourceMappingURL at ' + sourceMapPath)
   }
-  var sourceMapStr = fs.readFileSync(sourceMapPath)
-  var sourceMap = JSON.parse(sourceMapStr)
+  const sourceMapStr = fs.readFileSync(sourceMapPath)
+  const sourceMap = JSON.parse(sourceMapStr)
   sourceMapConsumer = new SourceMapConsumer(sourceMap)
 
   // sourceMapConsumer.eachMapping(function (m) { console.log(m.generatedLine, m.source); });
@@ -151,10 +152,10 @@ async function runCoverage () {
   const coverageOutput = await page.evaluate(cssRules => {
     // This is the meat of the code. It runs inside the browser
     console.log(`Starting evaluation`)
-    var rules = cssRules
+    const rules = cssRules
 
     // Add default do-nothing for selectors used in cnx-easybake
-    var PSEUDOS = ['deferred', 'pass', 'match', 'after', 'before', 'outside']
+    const PSEUDOS = ['deferred', 'pass', 'match', 'after', 'before', 'outside']
     PSEUDOS.forEach(function (pseudo) {
       window.Sizzle.selectors.match[pseudo] = RegExp(':?:?' + pseudo)
       window.Sizzle.selectors.find[pseudo] = function (match, context, isXML) { return context }
@@ -165,7 +166,7 @@ async function runCoverage () {
     rules.forEach(function (selectors) {
       console.log(`Checking selector: "${JSON.stringify(selectors)}"`)
 
-      var count = 0
+      let count = 0
       // selectors could be null (maybe if it's a comment?)
       if (selectors) {
         selectors.forEach(function (selector) {
@@ -179,7 +180,7 @@ async function runCoverage () {
           })
 
           try {
-            var matches = window.Sizzle(selector)
+            const matches = window.Sizzle(selector)
             count += matches.length
           } catch (e) {
             // If we cannot select it then we cannot cover it
@@ -203,7 +204,7 @@ async function runCoverage () {
   log.debug('Finished evaluating selectors')
   log.info('Generating LCOV string...')
 
-  var lcovStr = generateLcovStr(coverageOutput)
+  const lcovStr = generateLcovStr(coverageOutput)
   if (commander.lcov) {
     fs.writeFileSync(commander.lcov, lcovStr)
   } else {
@@ -223,16 +224,16 @@ function generateLcovStr (coverageOutput) {
   // coverageOutput is of the form:
   // [[1, ['body']], [400, ['div.foo']]]
   // where each entry is a pair of count, selectors
-  var expected = cssRules.length
-  var actual = coverageOutput.length
+  const expected = cssRules.length
+  const actual = coverageOutput.length
   if (expected !== actual) {
     throw new Error('BUG: count lengths do not match. Expected: ' + expected + ' Actual: ' + actual)
   }
 
-  var files = {} // key is filename, value is [{startLine, endLine, count}]
-  var ret = [] // each line in the lcov file. Joined at the end of the function
+  const files = {} // key is filename, value is [{startLine, endLine, count}]
+  const ret = [] // each line in the lcov file. Joined at the end of the function
 
-  var cssLines = CSS_STR.split('\n')
+  const cssLines = CSS_STR.split('\n')
 
   function addCoverage (fileName, count, startLine, endLine) {
     // add it to the files
@@ -242,7 +243,7 @@ function generateLcovStr (coverageOutput) {
     files[fileName].push({startLine: startLine, endLine: endLine, count: count})
   }
 
-  var i = -1
+  let i = -1
   cssTree.walkRules(ast, (rule, item, list) => {
     if (rule.type !== 'Rule') {
       return // Skip AtRules
@@ -250,25 +251,25 @@ function generateLcovStr (coverageOutput) {
 
     i += 1
 
-    var count = coverageOutput[i][0]
-    var fileName
-    var startLine
-    var endLine
+    const count = coverageOutput[i][0]
+    let fileName
+    let startLine
+    let endLine
     // Look up the source map (if available)
     if (sourceMapConsumer) {
       // From https://github.com/mozilla/source-map#sourcemapconsumerprototypeoriginalpositionforgeneratedposition
       // Could have been {line: rule.position.start.line, column: rule.positoin.start.column}
-      var origStart = rule.loc.start
-      var origEnd = rule.loc.end
+      const origStart = rule.loc.start
+      const origEnd = rule.loc.end
 
       if (commander.coverDeclarations) {
         // Loop over every character between origStart and origEnd to make sure they are covered
         // TODO: Do not duplicate-count lines just because this code runs character-by-character
-        var parseColumn = origStart.column
-        for (var parseLine = origStart.line; parseLine <= origEnd.line; parseLine++) {
-          var curLineText = cssLines[parseLine - 1]
-          for (var curColumn = parseColumn - 1; curColumn < curLineText.length; curColumn++) {
-            var info = sourceMapConsumer.originalPositionFor({line: parseLine, column: curColumn})
+        let parseColumn = origStart.column
+        for (let parseLine = origStart.line; parseLine <= origEnd.line; parseLine++) {
+          const curLineText = cssLines[parseLine - 1]
+          for (let curColumn = parseColumn - 1; curColumn < curLineText.length; curColumn++) {
+            const info = sourceMapConsumer.originalPositionFor({line: parseLine, column: curColumn})
             // stop processing when we hit origEnd
             if (parseLine === origEnd.line && curColumn >= origEnd.column) {
               break
@@ -292,8 +293,8 @@ function generateLcovStr (coverageOutput) {
         }
       } else {
         // Just cover the selectors
-        var startInfo = sourceMapConsumer.originalPositionFor({line: origStart.line, column: origStart.column - 1})
-        // var endInfo = sourceMapConsumer.originalPositionFor({line: origEnd.line, column: origEnd.column - 2})
+        const startInfo = sourceMapConsumer.originalPositionFor({line: origStart.line, column: origStart.column - 1})
+        // const endInfo = sourceMapConsumer.originalPositionFor({line: origEnd.line, column: origEnd.column - 2})
 
         // When there is no match, startInfo.source is null
         if (!startInfo.source /* || startInfo.source !== endInfo.source */) {
@@ -323,18 +324,18 @@ function generateLcovStr (coverageOutput) {
     }
   })
 
-  for (var fileName in files) {
-    var nonZero = 0 // For summary info
-    var allCounter = 0
-    var fileNamePrefix = sourceMapPath ? path.dirname(sourceMapPath) : ''
+  for (const fileName in files) {
+    let nonZero = 0 // For summary info
+    let allCounter = 0
+    const fileNamePrefix = sourceMapPath ? path.dirname(sourceMapPath) : ''
     ret.push('SF:' + path.resolve(fileNamePrefix, fileName))
 
     files[fileName].forEach(function (entry) {
-      var startLine = entry.startLine
-      var endLine = entry.endLine
-      var count = entry.count
+      const startLine = entry.startLine
+      const endLine = entry.endLine
+      const count = entry.count
 
-      for (var line = startLine; line <= endLine; line++) {
+      for (let line = startLine; line <= endLine; line++) {
         ret.push('DA:' + line + ',' + count)
         if (count > 0) {
           nonZero += 1

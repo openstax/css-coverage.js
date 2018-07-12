@@ -2,7 +2,8 @@
   "name": "css-coverage",
   "version": "0.2.6",
   "scripts": {
-    "test": "standard --fix"
+    "test": "./bin/css-coverage --cover-declarations --html ./test/test.html --css ./test/test.css --lcov ./test/test.lcov",
+    "posttest": "standard --fix"
   },
   "dependencies": {
     "bunyan": "^1.8.12",
