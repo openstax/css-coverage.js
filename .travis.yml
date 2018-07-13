@@ -1,0 +1,11 @@
+language: node_js
+node_js:
+  - 10
+
+# Cache the 3rd-party packages. From https://blog.travis-ci.com/2016-11-21-travis-ci-now-supports-yarn
+cache:
+  yarn: true
+
+after_script:
+  # Report coverage to codecov
+  - bash <(curl -s https://codecov.io/bash)
