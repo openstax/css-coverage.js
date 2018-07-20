@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "scripts": {
     "test": "./bin/css-coverage --cover-declarations --html ./test/test.html --css ./test/test.css --lcov ./test/test.lcov",
+    "test-debug": "node --inspect-brk ./bin/css-coverage --cover-declarations --html ./test/test.html --css ./test/test.css --lcov ./test/test.lcov",
     "posttest": "standard --fix"
   },
   "dependencies": {
@@ -14,7 +15,7 @@
     "phantomjs-prebuilt": "2.1.16",
     "puppeteer": "^1.5.0",
     "sizzle": "2.3.3",
-    "source-map": "0.5.6",
+    "source-map": "0.7.3",
     "standard": "^11.0.1"
   },
   "bin": {
