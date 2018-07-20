@@ -1,5 +1,7 @@
 # CSS Coverage!
 
+[![Greenkeeper badge](https://badges.greenkeeper.io/philschatz/css-coverage.js.svg)](https://greenkeeper.io/)
+
 Generates coverage information of your CSS files and creates reports using the optional source maps.
 
 ## How is this different from other CSS coverage tools?

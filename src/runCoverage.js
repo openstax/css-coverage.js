@@ -82,20 +82,23 @@ cssTree.walkRules(ast, (rule) => {
   }
 })
 
-// Check if there is a sourceMappingURL
-let sourceMapConsumer = null
-let sourceMapPath
-if (!commander.ignoreSourceMap && /sourceMappingURL=([^ ]*)/.exec(CSS_STR)) {
-  sourceMapPath = /sourceMappingURL=([^ ]*)/.exec(CSS_STR)[1]
-  sourceMapPath = path.resolve(path.dirname(commander.css), sourceMapPath)
-  if (commander.verbose) {
-    console.error('Using sourceMappingURL at ' + sourceMapPath)
-  }
-  const sourceMapStr = fs.readFileSync(sourceMapPath)
-  const sourceMap = JSON.parse(sourceMapStr)
-  sourceMapConsumer = new SourceMapConsumer(sourceMap)
+async function initializeSourceMapConsumer () {
+  // Check if there is a sourceMappingURL
+  let sourceMapPath
+  if (!commander.ignoreSourceMap && /sourceMappingURL=([^ ]*)/.exec(CSS_STR)) {
+    sourceMapPath = /sourceMappingURL=([^ ]*)/.exec(CSS_STR)[1]
+    sourceMapPath = path.resolve(path.dirname(commander.css), sourceMapPath)
+    if (commander.verbose) {
+      console.error('Using sourceMappingURL at ' + sourceMapPath)
+    }
+    const sourceMapStr = fs.readFileSync(sourceMapPath)
+    const sourceMap = JSON.parse(sourceMapStr)
+    const sourceMapConsumer = await new SourceMapConsumer(sourceMap)
 
-  // sourceMapConsumer.eachMapping(function (m) { console.log(m.generatedLine, m.source); });
+    // sourceMapConsumer.eachMapping(function (m) { console.log(m.generatedLine, m.source); });
+
+    return {sourceMapConsumer, sourceMapPath}
+  }
 }
 
 async function runCoverage () {
@@ -204,7 +207,7 @@ async function runCoverage () {
   log.debug('Finished evaluating selectors')
   log.info('Generating LCOV string...')
 
-  const lcovStr = generateLcovStr(coverageOutput)
+  const lcovStr = await generateLcovStr(coverageOutput)
   if (commander.lcov) {
     fs.writeFileSync(commander.lcov, lcovStr)
   } else {
@@ -220,7 +223,7 @@ runCoverage()
     process.exit(STATUS_CODE.ERROR)
   })
 
-function generateLcovStr (coverageOutput) {
+async function generateLcovStr (coverageOutput) {
   // coverageOutput is of the form:
   // [[1, ['body']], [400, ['div.foo']]]
   // where each entry is a pair of count, selectors
@@ -229,6 +232,7 @@ function generateLcovStr (coverageOutput) {
   if (expected !== actual) {
     throw new Error('BUG: count lengths do not match. Expected: ' + expected + ' Actual: ' + actual)
   }
+  const {sourceMapConsumer, sourceMapPath} = await initializeSourceMapConsumer()
 
   const files = {} // key is filename, value is [{startLine, endLine, count}]
   const ret = [] // each line in the lcov file. Joined at the end of the function
