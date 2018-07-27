@@ -111,6 +111,11 @@ async function runCoverage () {
   })
   const page = await browser.newPage()
 
+  log.info(`Opening (X)HTML file (may take a few minutes)`)
+  log.debug(`Opening "${url}"`)
+  await page.goto(url)
+  log.debug(`Opened "${url}"`)
+
   const browserLog = log.child({browser: 'console'})
   page.on('console', msg => {
     switch (msg.type()) {
@@ -140,11 +145,6 @@ async function runCoverage () {
     log.fatal('browser-ERROR', msgText)
     process.exit(STATUS_CODE.ERROR)
   })
-
-  log.info(`Opening (X)HTML file (may take a few minutes)`)
-  log.debug(`Opening "${url}"`)
-  await page.goto(url)
-  log.debug(`Opened "${url}"`)
 
   log.debug(`Adding sizzleJS`)
   await page.mainFrame().addScriptTag({
