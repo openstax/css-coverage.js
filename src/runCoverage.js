@@ -227,12 +227,25 @@ async function generateLcovStr (coverageOutput) {
   // coverageOutput is of the form:
   // [[1, ['body']], [400, ['div.foo']]]
   // where each entry is a pair of count, selectors
+
   const expected = cssRules.length
   const actual = coverageOutput.length
   if (expected !== actual) {
     throw new Error('BUG: count lengths do not match. Expected: ' + expected + ' Actual: ' + actual)
   }
-  const {sourceMapConsumer, sourceMapPath} = await initializeSourceMapConsumer()
+
+  let sourceMapConsumer
+  let sourceMapPath
+
+  // Skip files that do not have a sourcemap
+  if (commander.ignoreSourceMap || /sourceMappingURL=([^ ]*)/.exec(CSS_STR)) {
+    sourceMapConsumer = null
+    sourceMapPath = 'noSourceMapProvided'
+  } else {
+    const realConsumer = await initializeSourceMapConsumer()
+    sourceMapConsumer = realConsumer.sourceMapConsumer
+    sourceMapPath = realConsumer.sourceMapPath
+  }
 
   const files = {} // key is filename, value is [{startLine, endLine, count}]
   const ret = [] // each line in the lcov file. Joined at the end of the function
