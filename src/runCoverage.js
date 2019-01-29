@@ -238,7 +238,7 @@ async function generateLcovStr (coverageOutput) {
   let sourceMapPath
 
   // Skip files that do not have a sourcemap
-  if (commander.ignoreSourceMap || /sourceMappingURL=([^ ]*)/.exec(CSS_STR)) {
+  if (commander.ignoreSourceMap || !/sourceMappingURL=([^ ]*)/.test(CSS_STR)) {
     sourceMapConsumer = null
     sourceMapPath = 'noSourceMapProvided'
   } else {
