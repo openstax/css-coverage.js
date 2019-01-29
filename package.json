@@ -16,7 +16,7 @@
     "puppeteer": "^1.5.0",
     "sizzle": "2.3.3",
     "source-map": "0.7.3",
-    "standard": "^11.0.1"
+    "standard": "^12.0.0"
   },
   "bin": {
     "css-coverage": "bin/css-coverage"
