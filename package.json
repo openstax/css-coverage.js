@@ -2,8 +2,8 @@
   "name": "css-coverage",
   "version": "1.2.1",
   "scripts": {
-    "test": "./bin/css-coverage --cover-declarations --html ./test/test.html --css ./test/test.css --lcov ./test/test.lcov",
-    "test-debug": "node --inspect-brk ./bin/css-coverage --cover-declarations --html ./test/test.html --css ./test/test.css --lcov ./test/test.lcov",
+    "test": "./bin/css-coverage.js --cover-declarations --html ./test/test.html --css ./test/test.css --lcov ./test/test.lcov",
+    "test-debug": "node --inspect-brk ./bin/css-coverage.js --cover-declarations --html ./test/test.html --css ./test/test.css --lcov ./test/test.lcov",
     "posttest": "standard --fix"
   },
   "dependencies": {
@@ -12,16 +12,14 @@
     "commander": "2.17.0",
     "css-tree": "1.0.0-alpha25",
     "dotenv": "^6.0.0",
-    "phantomjs-prebuilt": "2.1.16",
     "puppeteer": "^1.5.0",
     "sizzle": "2.3.3",
     "source-map": "0.7.3",
     "standard": "^12.0.0"
   },
   "bin": {
-    "css-coverage": "bin/css-coverage"
+    "css-coverage": "bin/css-coverage.js"
   },
-  "preferGlobal": true,
   "keywords": [
     "css",
     "coverage",
@@ -30,7 +28,7 @@
     "source-map"
   ],
   "main": "index.js",
-  "repository": "https://github.com/philschatz/css-coverage.js.git",
+  "repository": "https://github.com/openstax/css-coverage.js.git",
   "author": "Philip Schatz <phil@cnx.org>",
   "license": "MIT"
 }

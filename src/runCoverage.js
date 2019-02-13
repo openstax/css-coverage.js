@@ -12,7 +12,7 @@ const BunyanFormat = require('bunyan-format')
 const log = bunyan.createLogger({
   name: 'css-coverage',
   level: process.env.LOG_LEVEL || 'info',
-  stream: new BunyanFormat({outputMode: process.env.LOG_FORMAT || 'short'})
+  stream: new BunyanFormat({ outputMode: process.env.LOG_FORMAT || 'short' })
 })
 
 function parseFileName (filePath) {
@@ -97,7 +97,7 @@ async function initializeSourceMapConsumer () {
 
     // sourceMapConsumer.eachMapping(function (m) { console.log(m.generatedLine, m.source); });
 
-    return {sourceMapConsumer, sourceMapPath}
+    return { sourceMapConsumer, sourceMapPath }
   }
 }
 
@@ -116,7 +116,7 @@ async function runCoverage () {
   await page.goto(url)
   log.debug(`Opened "${url}"`)
 
-  const browserLog = log.child({browser: 'console'})
+  const browserLog = log.child({ browser: 'console' })
   page.on('console', msg => {
     switch (msg.type()) {
       case 'error':
@@ -257,7 +257,7 @@ async function generateLcovStr (coverageOutput) {
     if (!files[fileName]) {
       files[fileName] = []
     }
-    files[fileName].push({startLine: startLine, endLine: endLine, count: count})
+    files[fileName].push({ startLine: startLine, endLine: endLine, count: count })
   }
 
   let i = -1
@@ -286,7 +286,7 @@ async function generateLcovStr (coverageOutput) {
         for (let parseLine = origStart.line; parseLine <= origEnd.line; parseLine++) {
           const curLineText = cssLines[parseLine - 1]
           for (let curColumn = parseColumn - 1; curColumn < curLineText.length; curColumn++) {
-            const info = sourceMapConsumer.originalPositionFor({line: parseLine, column: curColumn})
+            const info = sourceMapConsumer.originalPositionFor({ line: parseLine, column: curColumn })
             // stop processing when we hit origEnd
             if (parseLine === origEnd.line && curColumn >= origEnd.column) {
               break
@@ -302,7 +302,7 @@ async function generateLcovStr (coverageOutput) {
                 console.error('BUG: Could not look up source for this range:')
                 console.error('origStart', origStart)
                 console.error('origEnd', origEnd)
-                console.error('currIndexes', {line: parseLine, column: curColumn})
+                console.error('currIndexes', { line: parseLine, column: curColumn })
               }
             }
           }
@@ -310,7 +310,7 @@ async function generateLcovStr (coverageOutput) {
         }
       } else {
         // Just cover the selectors
-        const startInfo = sourceMapConsumer.originalPositionFor({line: origStart.line, column: origStart.column - 1})
+        const startInfo = sourceMapConsumer.originalPositionFor({ line: origStart.line, column: origStart.column - 1 })
         // const endInfo = sourceMapConsumer.originalPositionFor({line: origEnd.line, column: origEnd.column - 2})
 
         // When there is no match, startInfo.source is null
