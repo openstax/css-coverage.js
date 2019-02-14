@@ -12,6 +12,20 @@ body {
     move-to: footer;
   }
 
+  a:link {
+    color: green;
+  }
+
+  div:deferred { color: green; }
+  div:pass { color: green; }
+  div:match { color: green; }
+  div:after { color: green; }
+  div:before { color: green; }
+  div:outside { color: green; }
+  div:link { color: green; }
+  div:footnote-call { color: green; }
+  div:footnote-marker { color: green; }
+
 }
 
 .unused-class { display: none; }

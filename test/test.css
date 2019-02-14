@@ -2,24 +2,60 @@ body .class1 {
   color: blue;
   background-color: red;
   color: green;
-  background-color: white; }
-
+  background-color: white;
+}
 body .class2 {
   border: 1px solid;
-  move-to: footer; }
+  move-to: footer;
+}
+body a:link {
+  color: green;
+}
+body div:deferred {
+  color: green;
+}
+body div:pass {
+  color: green;
+}
+body div:match {
+  color: green;
+}
+body div:after {
+  color: green;
+}
+body div:before {
+  color: green;
+}
+body div:outside {
+  color: green;
+}
+body div:link {
+  color: green;
+}
+body div:footnote-call {
+  color: green;
+}
+body div:footnote-marker {
+  color: green;
+}
 
 .unused-class {
-  display: none; }
+  display: none;
+}
 
 p > div.another-unused-class {
-  display: none; }
+  display: none;
+}
 
 .footer {
-  content: pending(footer); }
+  content: pending(footer);
+}
 
 @page :left {
   color: red;
   @footnotes {
-    color: red; } }
+    color: red;
+  }
+}
 
 /*# sourceMappingURL=test.css.map */

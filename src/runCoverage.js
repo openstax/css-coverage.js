@@ -158,7 +158,7 @@ async function runCoverage () {
     const rules = cssRules
 
     // Add default do-nothing for selectors used in cnx-easybake
-    const PSEUDOS = ['deferred', 'pass', 'match', 'after', 'before', 'outside']
+    const PSEUDOS = ['deferred', 'pass', 'match', 'after', 'before', 'outside', 'link', 'footnote-call', 'footnote-marker']
     PSEUDOS.forEach(function (pseudo) {
       window.Sizzle.selectors.match[pseudo] = RegExp(':?:?' + pseudo)
       window.Sizzle.selectors.find[pseudo] = function (match, context, isXML) { return context }
