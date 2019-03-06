@@ -1,6 +1,5 @@
 const fs = require('fs')
 const path = require('path')
-const puppeteer = require('puppeteer')
 const commander = require('commander')
 const SourceMapConsumer = require('source-map').SourceMapConsumer
 const cssTree = require('css-tree')
@@ -101,10 +100,60 @@ async function initializeSourceMapConsumer () {
   }
 }
 
-async function runCoverage () {
+function browserWorkFn (cssRules) {
+  // This is the meat of the code. It runs inside the browser
+  console.log(`Starting evaluation`)
+  const rules = cssRules
+
+  // Add default do-nothing for selectors used in cnx-easybake
+  const PSEUDOS = ['deferred', 'pass', 'match', 'after', 'before', 'outside', 'link', 'footnote-call', 'footnote-marker']
+  PSEUDOS.forEach(function (pseudo) {
+    window.Sizzle.selectors.match[pseudo] = RegExp(':?:?' + pseudo)
+    window.Sizzle.selectors.find[pseudo] = function (match, context, isXML) { return context }
+    window.Sizzle.selectors.pseudos[pseudo] = function (elem) { return elem }
+  })
+
+  const ret = []
+  rules.forEach(function (selectors) {
+    console.log(`Checking selector: "${JSON.stringify(selectors)}"`)
+
+    let count = 0
+    // selectors could be null (maybe if it's a comment?)
+    if (selectors) {
+      selectors.forEach(function (selector) {
+        // HACK: Remove those pseudos from the selector manually
+        PSEUDOS.forEach(function (pseudo) {
+          // special-case :pass(1) and :match("regexp") because they have arguments (and Sizzle handles them correctly)
+          if (pseudo !== 'pass' && pseudo !== 'match') {
+            selector = selector.replace(RegExp('::?' + pseudo), '')
+            // TODO: replaceAll instead of just replace
+          }
+        })
+
+        try {
+          const matches = window.Sizzle(selector)
+          count += matches.length
+        } catch (e) {
+          // If we cannot select it then we cannot cover it
+          console.warn('Skipping selector that could not be matched using SizzleJS: ' + selector)
+        }
+      })
+    }
+
+    console.log(`Found ${count} matche(s)`)
+
+    ret.push([count, selectors])
+  })
+
+  console.log(`Finished checking selectors`)
+  return ret
+}
+
+async function runCoveragePuppeteer () {
   const url = `file://${path.resolve(commander.html)}`
 
   log.debug('Starting puppeteer...')
+  const puppeteer = require('puppeteer')
   const browser = await puppeteer.launch({
     args: ['--no-sandbox'],
     devtools: process.env.NODE_ENV === 'development'
@@ -152,54 +201,7 @@ async function runCoverage () {
   })
 
   log.debug(`Calculating coverage`)
-  const coverageOutput = await page.evaluate(cssRules => {
-    // This is the meat of the code. It runs inside the browser
-    console.log(`Starting evaluation`)
-    const rules = cssRules
-
-    // Add default do-nothing for selectors used in cnx-easybake
-    const PSEUDOS = ['deferred', 'pass', 'match', 'after', 'before', 'outside', 'link', 'footnote-call', 'footnote-marker']
-    PSEUDOS.forEach(function (pseudo) {
-      window.Sizzle.selectors.match[pseudo] = RegExp(':?:?' + pseudo)
-      window.Sizzle.selectors.find[pseudo] = function (match, context, isXML) { return context }
-      window.Sizzle.selectors.pseudos[pseudo] = function (elem) { return elem }
-    })
-
-    const ret = []
-    rules.forEach(function (selectors) {
-      console.log(`Checking selector: "${JSON.stringify(selectors)}"`)
-
-      let count = 0
-      // selectors could be null (maybe if it's a comment?)
-      if (selectors) {
-        selectors.forEach(function (selector) {
-          // HACK: Remove those pseudos from the selector manually
-          PSEUDOS.forEach(function (pseudo) {
-            // special-case :pass(1) and :match("regexp") because they have arguments (and Sizzle handles them correctly)
-            if (pseudo !== 'pass' && pseudo !== 'match') {
-              selector = selector.replace(RegExp('::?' + pseudo), '')
-              // TODO: replaceAll instead of just replace
-            }
-          })
-
-          try {
-            const matches = window.Sizzle(selector)
-            count += matches.length
-          } catch (e) {
-            // If we cannot select it then we cannot cover it
-            console.warn('Skipping selector that could not be matched using SizzleJS: ' + selector)
-          }
-        })
-      }
-
-      console.log(`Found ${count} matche(s)`)
-
-      ret.push([count, selectors])
-    })
-
-    console.log(`Finished checking selectors`)
-    return ret
-  }, cssRules)
+  const coverageOutput = await page.evaluate(browserWorkFn, cssRules)
 
   log.debug('Closing browser')
   await browser.close()
@@ -217,11 +219,19 @@ async function runCoverage () {
   log.debug('Done writing LCOV string')
 }
 
-runCoverage()
-  .then(null, err => {
-    log.fatal(err)
-    process.exit(STATUS_CODE.ERROR)
-  })
+if (require.resolve('puppeteer') && process.env.FORCE_JSDOM !== 'true') {
+  runCoveragePuppeteer()
+    .then(null, err => {
+      log.fatal(err)
+      process.exit(STATUS_CODE.ERROR)
+    })
+} else {
+  runCoverageJsDom()
+    .then(null, err => {
+      log.fatal(err)
+      process.exit(STATUS_CODE.ERROR)
+    })
+}
 
 async function generateLcovStr (coverageOutput) {
   // coverageOutput is of the form:
