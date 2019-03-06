@@ -105,8 +105,9 @@ async function runCoverage () {
   const url = `file://${path.resolve(commander.html)}`
 
   log.debug('Starting puppeteer...')
+  const args = process.env.COVERAGE_NO_SANDBOX === 'true' ? ['--no-sandbox'] : []
   const browser = await puppeteer.launch({
-    args: ['--no-sandbox'],
+    args: args,
     devtools: process.env.NODE_ENV === 'development'
   })
   const page = await browser.newPage()
