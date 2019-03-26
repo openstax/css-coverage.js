@@ -19,6 +19,10 @@ function parseFileName (filePath) {
   return path.resolve(process.cwd(), filePath)
 }
 
+function parseTokenList (tokenString) {
+  return tokenString.split(',').map(token => token.trim().toLowerCase())
+}
+
 const STATUS_CODE = {
   ERROR: 111,
   OK: 0
@@ -33,6 +37,7 @@ commander
   .option('--verbose', 'verbose/debugging output')
   .option('--ignore-source-map', 'disable loading the sourcemap if one is found')
   .option('--cover-declarations', 'try to cover CSS declarations as well as selectors (best-effort, difficult with sourcemaps)')
+  .option('--ignore-declarations [move-to,content]', 'A comma-separated list of declarations to ignore', parseTokenList)
   .parse(process.argv)
 
 // Validate args
@@ -69,11 +74,24 @@ try {
 }
 
 const cssRules = []
+const cssDeclarations = {} // so it is serializable to the browser
+
 cssTree.walkRules(ast, (rule) => {
   if (rule.type === 'Atrule') {
     // ignore
   } else if (rule.type === 'Rule') {
     const converted = rule.prelude.children.map((selector) => {
+      rule.block.children.each(declaration => {
+        if (commander.ignoreDeclarations.indexOf(declaration.property.toLowerCase()) >= 0) {
+          return // skip because it is ignored
+        }
+        // Append to a list of locations
+        const key = cssTree.translate(declaration)
+        let locs = cssDeclarations[key]
+        locs = locs || []
+        locs.push(declaration.loc)
+        cssDeclarations[key] = locs
+      })
       return cssTree.translate(selector)
     })
     cssRules.push(converted)
@@ -152,7 +170,7 @@ async function runCoverage () {
   })
 
   log.debug(`Calculating coverage`)
-  const coverageOutput = await page.evaluate(cssRules => {
+  const { matchedSelectors: coverageOutput, supportedDeclarations } = await page.evaluate((cssRules, cssDeclarations) => {
     // This is the meat of the code. It runs inside the browser
     console.log(`Starting evaluation`)
     const rules = cssRules
@@ -165,7 +183,7 @@ async function runCoverage () {
       window.Sizzle.selectors.pseudos[pseudo] = function (elem) { return elem }
     })
 
-    const ret = []
+    const matchedSelectors = []
     rules.forEach(function (selectors) {
       console.log(`Checking selector: "${JSON.stringify(selectors)}"`)
 
@@ -194,12 +212,22 @@ async function runCoverage () {
 
       console.log(`Found ${count} matche(s)`)
 
-      ret.push([count, selectors])
+      matchedSelectors.push([count, selectors])
     })
 
     console.log(`Finished checking selectors`)
-    return ret
-  }, cssRules)
+
+    console.log(`Checking if declarations are understandable by the browser`)
+    const supportedDeclarations = []
+    for (const decl of cssDeclarations) {
+      if (window.CSS.supports(decl)) {
+        supportedDeclarations.push(decl)
+      } else {
+        console.warn(`Unsupported declaration ${decl}`)
+      }
+    }
+    return { matchedSelectors, supportedDeclarations }
+  }, cssRules, Object.keys(cssDeclarations))
 
   log.debug('Closing browser')
   await browser.close()
@@ -207,7 +235,7 @@ async function runCoverage () {
   log.debug('Finished evaluating selectors')
   log.info('Generating LCOV string...')
 
-  const lcovStr = await generateLcovStr(coverageOutput)
+  const lcovStr = await generateLcovStr(coverageOutput, supportedDeclarations)
   if (commander.lcov) {
     fs.writeFileSync(commander.lcov, lcovStr)
   } else {
