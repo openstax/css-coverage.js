@@ -36,7 +36,6 @@ commander
   .option('--lcov [path/to/output.lcov]', 'the LCOV output file', parseFileName)
   .option('--verbose', 'verbose/debugging output')
   .option('--ignore-source-map', 'disable loading the sourcemap if one is found')
-  .option('--cover-declarations', 'try to cover CSS declarations as well as selectors (best-effort, difficult with sourcemaps)')
   .option('--ignore-declarations [move-to,content]', 'A comma-separated list of declarations to ignore', parseTokenList)
   .parse(process.argv)
 
@@ -251,7 +250,7 @@ runCoverage()
     process.exit(STATUS_CODE.ERROR)
   })
 
-async function generateLcovStr (coverageOutput) {
+async function generateLcovStr (coverageOutput, supportedDeclarations) {
   // coverageOutput is of the form:
   // [[1, ['body']], [400, ['div.foo']]]
   // where each entry is a pair of count, selectors
@@ -275,10 +274,27 @@ async function generateLcovStr (coverageOutput) {
     sourceMapPath = realConsumer.sourceMapPath
   }
 
+  function getStartInfo (origStart, origEnd) {
+    const startInfo = sourceMapConsumer.originalPositionFor({ line: origStart.line, column: origStart.column - 1 })
+    // const endInfo = sourceMapConsumer.originalPositionFor({line: origEnd.line, column: origEnd.column - 2})
+
+    // When there is no match, startInfo.source is null
+    if (!startInfo.source /* || startInfo.source !== endInfo.source */) {
+      console.error('cssStart', JSON.stringify(origStart))
+      origEnd && console.error('cssEnd', JSON.stringify(origEnd))
+      // console.error('sourceStart', JSON.stringify(startInfo));
+      // console.error('sourceEnd', JSON.stringify(endInfo));
+      throw new Error('BUG: sourcemap might be invalid. Maybe try regenerating it?')
+    } else {
+      if (commander.verbose) {
+        console.error('DEBUG: MATCHED this one', JSON.stringify(startInfo))
+      }
+    }
+    return startInfo
+  }
+
   const files = {} // key is filename, value is [{startLine, endLine, count}]
   const ret = [] // each line in the lcov file. Joined at the end of the function
-
-  const cssLines = CSS_STR.split('\n')
 
   function addCoverage (fileName, count, startLine, endLine) {
     // add it to the files
@@ -307,55 +323,8 @@ async function generateLcovStr (coverageOutput) {
       const origStart = rule.loc.start
       const origEnd = rule.loc.end
 
-      if (commander.coverDeclarations) {
-        // Loop over every character between origStart and origEnd to make sure they are covered
-        // TODO: Do not duplicate-count lines just because this code runs character-by-character
-        let parseColumn = origStart.column
-        for (let parseLine = origStart.line; parseLine <= origEnd.line; parseLine++) {
-          const curLineText = cssLines[parseLine - 1]
-          for (let curColumn = parseColumn - 1; curColumn < curLineText.length; curColumn++) {
-            const info = sourceMapConsumer.originalPositionFor({ line: parseLine, column: curColumn })
-            // stop processing when we hit origEnd
-            if (parseLine === origEnd.line && curColumn >= origEnd.column) {
-              break
-            }
-            if (/\s/.test(curLineText[curColumn])) {
-              continue
-            }
-            // console.error('PHIL ', curLineText[curColumn], {line: parseLine, column: curColumn}, info);
-            if (info.source) {
-              addCoverage(info.source, count, info.line, info.line)
-            } else {
-              if (commander.verbose) {
-                console.error('BUG: Could not look up source for this range:')
-                console.error('origStart', origStart)
-                console.error('origEnd', origEnd)
-                console.error('currIndexes', { line: parseLine, column: curColumn })
-              }
-            }
-          }
-          parseColumn = 1
-        }
-      } else {
-        // Just cover the selectors
-        const startInfo = sourceMapConsumer.originalPositionFor({ line: origStart.line, column: origStart.column - 1 })
-        // const endInfo = sourceMapConsumer.originalPositionFor({line: origEnd.line, column: origEnd.column - 2})
-
-        // When there is no match, startInfo.source is null
-        if (!startInfo.source /* || startInfo.source !== endInfo.source */) {
-          console.error('cssStart', JSON.stringify(origStart))
-          console.error('cssEnd', JSON.stringify(origEnd))
-          // console.error('sourceStart', JSON.stringify(startInfo));
-          // console.error('sourceEnd', JSON.stringify(endInfo));
-          throw new Error('BUG: sourcemap might be invalid. Maybe try regenerating it?')
-        } else {
-          if (commander.verbose) {
-            console.error('DEBUG: MATCHED this one', JSON.stringify(startInfo))
-          }
-        }
-
-        addCoverage(startInfo.source, count, startInfo.line, startInfo.line)
-      }
+      const startInfo = getStartInfo(origStart, origEnd)
+      addCoverage(startInfo.source, count, startInfo.line, startInfo.line)
     } else {
       // No sourceMap available
       fileName = commander.css
@@ -368,6 +337,15 @@ async function generateLcovStr (coverageOutput) {
       addCoverage(fileName, count, startLine, endLine)
     }
   })
+
+  // Mark all the unsupported declarations
+  const unsupportedDeclarations = Object.keys(cssDeclarations).filter(decl => supportedDeclarations.indexOf(decl) < 0)
+  for (const decl of unsupportedDeclarations) {
+    for (const loc of cssDeclarations[decl]) {
+      const startInfo = getStartInfo(loc.start)
+      addCoverage(startInfo.source, 0, startInfo.line, startInfo.line)
+    }
+  }
 
   for (const fileName in files) {
     let nonZero = 0 // For summary info
