@@ -296,12 +296,27 @@ async function generateLcovStr (coverageOutput, supportedDeclarations) {
   const files = {} // key is filename, value is [{startLine, endLine, count}]
   const ret = [] // each line in the lcov file. Joined at the end of the function
 
-  function addCoverage (fileName, count, startLine, endLine) {
+  function addCoverageRaw (fileName, count, startLine, endLine) {
     // add it to the files
     if (!files[fileName]) {
       files[fileName] = []
     }
     files[fileName].push({ startLine: startLine, endLine: endLine, count: count })
+  }
+
+  function addCoverage (count, origStart, origEnd) {
+    if (sourceMapConsumer) {
+      // From https://github.com/mozilla/source-map#sourcemapconsumerprototypeoriginalpositionforgeneratedposition
+      // Could have been {line: rule.position.start.line, column: rule.positoin.start.column}
+      const startInfo = getStartInfo(origStart, origEnd)
+      addCoverageRaw(startInfo.source, count, startInfo.line, startInfo.line)
+    } else {
+      // No sourceMap available
+      const fileName = commander.css
+      const startLine = origStart.line
+      const endLine = startLine // Just do the selector (startLine)
+      addCoverageRaw(fileName, count, startLine, endLine)
+    }
   }
 
   let i = -1
@@ -313,37 +328,20 @@ async function generateLcovStr (coverageOutput, supportedDeclarations) {
     i += 1
 
     const count = coverageOutput[i][0]
-    let fileName
-    let startLine
-    let endLine
-    // Look up the source map (if available)
-    if (sourceMapConsumer) {
-      // From https://github.com/mozilla/source-map#sourcemapconsumerprototypeoriginalpositionforgeneratedposition
-      // Could have been {line: rule.position.start.line, column: rule.positoin.start.column}
-      const origStart = rule.loc.start
-      const origEnd = rule.loc.end
 
-      const startInfo = getStartInfo(origStart, origEnd)
-      addCoverage(startInfo.source, count, startInfo.line, startInfo.line)
-    } else {
-      // No sourceMap available
-      fileName = commander.css
-      startLine = rule.loc.start.line
-      if (commander.coverDeclarations) {
-        endLine = rule.loc.end.line
-      } else {
-        endLine = startLine // Just do the selector (startLine)
-      }
-      addCoverage(fileName, count, startLine, endLine)
-    }
+    // From https://github.com/mozilla/source-map#sourcemapconsumerprototypeoriginalpositionforgeneratedposition
+    // Could have been {line: rule.position.start.line, column: rule.positoin.start.column}
+    const origStart = rule.loc.start
+    const origEnd = rule.loc.end
+
+    addCoverage(count, origStart, origEnd)
   })
 
   // Mark all the unsupported declarations
   const unsupportedDeclarations = Object.keys(cssDeclarations).filter(decl => supportedDeclarations.indexOf(decl) < 0)
   for (const decl of unsupportedDeclarations) {
     for (const loc of cssDeclarations[decl]) {
-      const startInfo = getStartInfo(loc.start)
-      addCoverage(startInfo.source, 0, startInfo.line, startInfo.line)
+      addCoverage(0, loc.start)
     }
   }
 
