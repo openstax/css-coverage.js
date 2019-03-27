@@ -1,6 +1,6 @@
 {
   "name": "css-coverage",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "scripts": {
     "pretest": "sass --source-map ./test/test.scss ./test/test.css",
     "test": "./bin/css-coverage.js --html ./test/test.html --css ./test/test.css --lcov ./test/test.lcov --ignore-declarations 'move-to,move-foobar'",
