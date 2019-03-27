@@ -4,7 +4,7 @@
   "scripts": {
     "pretest": "sass --source-map ./test/test.scss ./test/test.css",
     "test": "./bin/css-coverage.js --html ./test/test.html --css ./test/test.css --lcov ./test/test.lcov --ignore-declarations 'move-to,move-foobar'",
-    "test-debug": "node --inspect-brk ./bin/css-coverage.js --cover-declarations --html ./test/test.html --css ./test/test.css --lcov ./test/test.lcov",
+    "test-debug": "node --inspect-brk ./bin/css-coverage.js --cover-declarations --html ./test/test.html --css ./test/test.css --lcov ./test/test.lcov --ignore-declarations 'move-to,move-foobar'",
     "posttest": "standard --fix"
   },
   "dependencies": {

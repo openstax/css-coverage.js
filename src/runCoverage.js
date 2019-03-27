@@ -81,7 +81,7 @@ cssTree.walkRules(ast, (rule) => {
   } else if (rule.type === 'Rule') {
     const converted = rule.prelude.children.map((selector) => {
       rule.block.children.each(declaration => {
-        if (commander.ignoreDeclarations.indexOf(declaration.property.toLowerCase()) >= 0) {
+        if (commander.ignoreDeclarations && commander.ignoreDeclarations.indexOf(declaration.property.toLowerCase()) >= 0) {
           return // skip because it is ignored
         }
         // Append to a list of locations
