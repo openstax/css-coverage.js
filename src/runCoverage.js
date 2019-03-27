@@ -275,10 +275,14 @@ async function generateLcovStr (coverageOutput, supportedDeclarations) {
   }
 
   function getStartInfo (origStart, origEnd) {
-    const startInfo = sourceMapConsumer.originalPositionFor({ line: origStart.line, column: origStart.column - 1 })
+    let startInfo = sourceMapConsumer.originalPositionFor({ line: origStart.line, column: origStart.column - 1 })
     // const endInfo = sourceMapConsumer.originalPositionFor({line: origEnd.line, column: origEnd.column - 2})
 
-    // When there is no match, startInfo.source is null
+    // When there is no match, startInfo.source is null.
+    // Try fiddling with the column
+    if (!startInfo.source) {
+      startInfo = sourceMapConsumer.originalPositionFor({ line: origStart.line, column: origStart.column })
+    }
     if (!startInfo.source /* || startInfo.source !== endInfo.source */) {
       console.error('cssStart', JSON.stringify(origStart))
       origEnd && console.error('cssEnd', JSON.stringify(origEnd))
