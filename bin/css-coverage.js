@@ -2,4 +2,4 @@
 
 process.bin = process.title = 'css-coverage'
 
-require('../src/runCoverage')
+require('../src/cli')
