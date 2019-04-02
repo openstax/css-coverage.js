@@ -15,16 +15,16 @@ const logger = bunyan.createLogger({
 })
 
 async function doStuff (commander) {
-  const { ast, cssContent, cssRules, cssDeclarations } = prepare(commander)
-  await runCoverage(commander, cssContent, cssRules, cssDeclarations, ast)
+  const { ast, cssContent, cssRules, cssDeclarations } = prepare(commander.css, commander.ignoreDeclarations)
+  return runCoverage(commander.html, commander.css, commander.ignoreSourceMap, commander.lcov, cssContent, cssRules, cssDeclarations, ast)
 }
 
-function prepare (commander) {
-  const cssContent = fs.readFileSync(commander.css, 'utf8')
+function prepare (cssFile, ignoreDeclarations) {
+  const cssContent = fs.readFileSync(cssFile, 'utf8')
 
   let ast
   try {
-    ast = cssTree.parse(cssContent, { filename: commander.css, positions: true })
+    ast = cssTree.parse(cssContent, { filename: cssFile, positions: true })
   } catch (e) {
     // CssSyntaxError
     console.error('CssSyntaxError: ' + e.message + ' @ ' + e.line + ':' + e.column)
@@ -40,7 +40,7 @@ function prepare (commander) {
     } else if (rule.type === 'Rule') {
       const converted = rule.prelude.children.map((selector) => {
         rule.block.children.each(declaration => {
-          if (commander.ignoreDeclarations && commander.ignoreDeclarations.indexOf(declaration.property.toLowerCase()) >= 0) {
+          if (ignoreDeclarations && ignoreDeclarations.indexOf(declaration.property.toLowerCase()) >= 0) {
             return // skip because it is ignored
           }
           // Append to a list of locations
@@ -61,12 +61,12 @@ function prepare (commander) {
   return { ast, cssContent, cssRules, cssDeclarations }
 }
 
-async function initializeSourceMapConsumer (commander, cssContent) {
+async function initializeSourceMapConsumer (cssFile, ignoreSourceMap, cssContent) {
   // Check if there is a sourceMappingURL
   let sourceMapPath
-  if (!commander.ignoreSourceMap && /sourceMappingURL=([^ ]*)/.exec(cssContent)) {
+  if (!ignoreSourceMap && /sourceMappingURL=([^ ]*)/.exec(cssContent)) {
     sourceMapPath = /sourceMappingURL=([^ ]*)/.exec(cssContent)[1]
-    sourceMapPath = path.resolve(path.dirname(commander.css), sourceMapPath)
+    sourceMapPath = path.resolve(path.dirname(cssFile), sourceMapPath)
     logger.debug('Using sourceMappingURL at ' + sourceMapPath)
     const sourceMapStr = fs.readFileSync(sourceMapPath)
     const sourceMap = JSON.parse(sourceMapStr)
@@ -78,8 +78,8 @@ async function initializeSourceMapConsumer (commander, cssContent) {
   }
 }
 
-async function runCoverage (commander, cssContent, cssRules, cssDeclarations, ast) {
-  const url = `file://${path.resolve(commander.html)}`
+async function runCoverage (htmlFile, cssFile, ignoreSourceMap, lcovFile, cssContent, cssRules, cssDeclarations, ast) {
+  const url = `file://${path.resolve(htmlFile)}`
 
   logger.debug('Starting puppeteer...')
   const browser = await puppeteer.launch({
@@ -199,17 +199,10 @@ async function runCoverage (commander, cssContent, cssRules, cssDeclarations, as
 
   logger.debug('Finished evaluating selectors. Generating LCOV string...')
 
-  const lcovStr = await generateLcovStr(commander, cssContent, cssRules, cssDeclarations, ast, coverageOutput, supportedDeclarations)
-  if (commander.lcov) {
-    fs.writeFileSync(commander.lcov, lcovStr)
-  } else {
-    console.log(lcovStr)
-  }
-
-  logger.debug('Done writing LCOV string')
+  return generateLcovStr(cssFile, ignoreSourceMap, cssContent, cssRules, cssDeclarations, ast, coverageOutput, supportedDeclarations)
 }
 
-async function generateLcovStr (commander, cssContent, cssRules, cssDeclarations, ast, coverageOutput, supportedDeclarations) {
+async function generateLcovStr (cssFile, ignoreSourceMap, cssContent, cssRules, cssDeclarations, ast, coverageOutput, supportedDeclarations) {
   // coverageOutput is of the form:
   // [[1, ['body']], [400, ['div.foo']]]
   // where each entry is a pair of count, selectors
@@ -224,11 +217,11 @@ async function generateLcovStr (commander, cssContent, cssRules, cssDeclarations
   let sourceMapPath
 
   // Skip files that do not have a sourcemap
-  if (commander.ignoreSourceMap || !/sourceMappingURL=([^ ]*)/.test(cssContent)) {
+  if (ignoreSourceMap || !/sourceMappingURL=([^ ]*)/.test(cssContent)) {
     sourceMapConsumer = null
     sourceMapPath = 'noSourceMapProvided'
   } else {
-    const realConsumer = await initializeSourceMapConsumer(commander, cssContent)
+    const realConsumer = await initializeSourceMapConsumer(cssFile, ignoreSourceMap, cssContent)
     sourceMapConsumer = realConsumer.sourceMapConsumer
     sourceMapPath = realConsumer.sourceMapPath
   }
@@ -243,15 +236,13 @@ async function generateLcovStr (commander, cssContent, cssRules, cssDeclarations
       startInfo = sourceMapConsumer.originalPositionFor({ line: origStart.line, column: origStart.column })
     }
     if (!startInfo.source /* || startInfo.source !== endInfo.source */) {
-      console.error('cssStart', JSON.stringify(origStart))
-      origEnd && console.error('cssEnd', JSON.stringify(origEnd))
-      // console.error('sourceStart', JSON.stringify(startInfo));
-      // console.error('sourceEnd', JSON.stringify(endInfo));
+      logger.error('cssStart', JSON.stringify(origStart))
+      origEnd && logger.error('cssEnd', JSON.stringify(origEnd))
+      // logger.error('sourceStart', JSON.stringify(startInfo));
+      // logger.error('sourceEnd', JSON.stringify(endInfo));
       throw new Error('BUG: sourcemap might be invalid. Maybe try regenerating it?')
     } else {
-      if (commander.verbose) {
-        console.error('DEBUG: MATCHED this one', JSON.stringify(startInfo))
-      }
+      logger.trace('matched this one', JSON.stringify(startInfo))
     }
     return startInfo
   }
@@ -275,10 +266,9 @@ async function generateLcovStr (commander, cssContent, cssRules, cssDeclarations
       addCoverageRaw(startInfo.source, count, startInfo.line, startInfo.line)
     } else {
       // No sourceMap available
-      const fileName = commander.css
       const startLine = origStart.line
       const endLine = startLine // Just do the selector (startLine)
-      addCoverageRaw(fileName, count, startLine, endLine)
+      addCoverageRaw(cssFile, count, startLine, endLine)
     }
   }
 

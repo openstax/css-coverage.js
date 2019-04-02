@@ -18,11 +18,14 @@ function parseTokenList (tokenString) {
 
 commander
   // .usage('[options]')
-  .description('Generate coverage info for a CSS file against an HTML file. This supports loading sourcemaps by using the sourceMappingURL=FILENAME.map CSS comment')
+  .description(`Generate coverage info for a CSS file against an HTML file.
+
+This supports loading sourcemaps by using the sourceMappingURL=FILENAME.map CSS comment.
+
+Use the LOG_LEVEL environment variable for more verbose logging. Values: error,warn,info,debug,trace .`)
   .option('--html [path/to/file.html]', 'path to a local HTML file', parseFileName) // TODO: Support multiple
   .option('--css [path/to/file.css]', 'path to a local CSS file', parseFileName)
   .option('--lcov [path/to/output.lcov]', 'the LCOV output file', parseFileName)
-  .option('--verbose', 'verbose/debugging output')
   .option('--ignore-source-map', 'disable loading the sourcemap if one is found')
   .option('--ignore-declarations [move-to,content]', 'A comma-separated list of declarations to ignore', parseTokenList)
   .parse(process.argv)
@@ -50,7 +53,15 @@ if (commander.css) {
   process.exit(STATUS_CODE.ERROR)
 }
 
-doStuff(commander).then(null, err => {
+doStuff(commander).then((lcovStr) => {
+  if (commander.lcov) {
+    fs.writeFileSync(commander.lcov, lcovStr)
+  } else {
+    console.log(lcovStr)
+  }
+
+  logger.debug('Done writing LCOV string')
+}, err => {
   logger.fatal(err)
   process.exit(STATUS_CODE.ERROR)
 })
