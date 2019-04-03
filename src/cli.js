@@ -53,7 +53,8 @@ if (commander.css) {
   process.exit(STATUS_CODE.ERROR)
 }
 
-doStuff(commander).then((lcovStr) => {
+doStuff(commander).then(({ coverage, sourceMapPath }) => {
+  const lcovStr = toLcov(coverage, sourceMapPath, commander.lcov)
   if (commander.lcov) {
     fs.writeFileSync(commander.lcov, lcovStr)
   } else {
@@ -65,3 +66,31 @@ doStuff(commander).then((lcovStr) => {
   logger.fatal(err)
   process.exit(STATUS_CODE.ERROR)
 })
+
+function toLcov (files, sourceMapPath, lcovFile) {
+  const ret = [] // each line in the lcov file. Joined at the end of the function
+  for (const fileName in files) {
+    let nonZero = 0 // For summary info
+    let allCounter = 0
+    const fileNamePrefix = sourceMapPath ? path.dirname(sourceMapPath) : ''
+    const destFile = lcovFile ? path.relative(path.dirname(lcovFile), path.resolve(fileNamePrefix, fileName)) : path.resolve(fileNamePrefix, fileName)
+    ret.push(`SF:${destFile}`)
+    files[fileName].forEach(function (entry) {
+      const startLine = entry.startLine
+      const endLine = entry.endLine
+      const count = entry.count
+      for (let line = startLine; line <= endLine; line++) {
+        ret.push(`DA:${line},${count}`)
+        if (count > 0) {
+          nonZero += 1
+        }
+        allCounter += 1
+      }
+    })
+    // Include summary info for the file
+    ret.push(`LH:${nonZero}`)
+    ret.push(`LF:${allCounter}`)
+    ret.push(`end_of_record`)
+  }
+  return ret.join('\n')
+}

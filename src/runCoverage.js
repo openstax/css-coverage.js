@@ -248,7 +248,6 @@ async function generateLcovStr (cssFile, ignoreSourceMap, cssContent, cssRules, 
   }
 
   const files = {} // key is filename, value is [{startLine, endLine, count}]
-  const ret = [] // each line in the lcov file. Joined at the end of the function
 
   function addCoverageRaw (fileName, count, startLine, endLine) {
     // add it to the files
@@ -298,33 +297,7 @@ async function generateLcovStr (cssFile, ignoreSourceMap, cssContent, cssRules, 
     }
   }
 
-  for (const fileName in files) {
-    let nonZero = 0 // For summary info
-    let allCounter = 0
-    const fileNamePrefix = sourceMapPath ? path.dirname(sourceMapPath) : ''
-    ret.push('SF:' + path.resolve(fileNamePrefix, fileName))
-
-    files[fileName].forEach(function (entry) {
-      const startLine = entry.startLine
-      const endLine = entry.endLine
-      const count = entry.count
-
-      for (let line = startLine; line <= endLine; line++) {
-        ret.push('DA:' + line + ',' + count)
-        if (count > 0) {
-          nonZero += 1
-        }
-        allCounter += 1
-      }
-    })
-
-    // Include summary info for the file
-    ret.push('LH:' + nonZero)
-    ret.push('LF:' + allCounter)
-    ret.push('end_of_record')
-  }
-
-  return ret.join('\n')
+  return { coverage: files, sourceMapPath }
 }
 
 module.exports = {
