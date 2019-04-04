@@ -1,7 +1,6 @@
 const fs = require('fs')
 const path = require('path')
 const puppeteer = require('puppeteer')
-const commander = require('commander')
 const SourceMapConsumer = require('source-map').SourceMapConsumer
 const cssTree = require('css-tree')
 require('dotenv').config()
@@ -9,105 +8,74 @@ require('dotenv').config()
 const bunyan = require('bunyan')
 const BunyanFormat = require('bunyan-format')
 
-const log = bunyan.createLogger({
-  name: 'css-coverage',
-  level: process.env.LOG_LEVEL || 'info',
-  stream: new BunyanFormat({ outputMode: process.env.LOG_FORMAT || 'short' })
-})
+let theLogger = null
 
-function parseFileName (filePath) {
-  return path.resolve(process.cwd(), filePath)
-}
-
-function parseTokenList (tokenString) {
-  return tokenString.split(',').map(token => token.trim().toLowerCase())
-}
-
-const STATUS_CODE = {
-  ERROR: 111,
-  OK: 0
-}
-
-commander
-  // .usage('[options]')
-  .description('Generate coverage info for a CSS file against an HTML file. This supports loading sourcemaps by using the sourceMappingURL=FILENAME.map CSS comment')
-  .option('--html [path/to/file.html]', 'path to a local HTML file', parseFileName) // TODO: Support multiple
-  .option('--css [path/to/file.css]', 'path to a local CSS file', parseFileName)
-  .option('--lcov [path/to/output.lcov]', 'the LCOV output file', parseFileName)
-  .option('--verbose', 'verbose/debugging output')
-  .option('--ignore-source-map', 'disable loading the sourcemap if one is found')
-  .option('--ignore-declarations [move-to,content]', 'A comma-separated list of declarations to ignore', parseTokenList)
-  .parse(process.argv)
-
-// Validate args
-if (!commander.html && !commander.css) {
-  commander.help()
-}
-if (commander.html) {
-  if (!fs.statSync(commander.html).isFile()) {
-    console.error('ERROR: Invalid argument. HTML file not found at ' + commander.html)
-    process.exit(STATUS_CODE.ERROR)
-  }
-} else {
-  console.error('ERROR: Missing argument. At least 1 HTML file must be specified')
-  process.exit(STATUS_CODE.ERROR)
-}
-if (commander.css) {
-  if (!fs.statSync(commander.css).isFile()) {
-    console.error('ERROR: Invalid argument. CSS file not found at ' + commander.css)
-    process.exit(STATUS_CODE.ERROR)
-  }
-} else {
-  console.error('ERROR: Missing argument. A CSS file must be specified')
-  process.exit(STATUS_CODE.ERROR)
-}
-
-const CSS_STR = fs.readFileSync(commander.css, 'utf8')
-let ast
-try {
-  ast = cssTree.parse(CSS_STR, { filename: commander.css, positions: true })
-} catch (e) {
-  // CssSyntaxError
-  console.error('CssSyntaxError: ' + e.message + ' @ ' + e.line + ':' + e.column)
-  throw e
-}
-
-const cssRules = []
-const cssDeclarations = {} // so it is serializable to the browser
-
-cssTree.walkRules(ast, (rule) => {
-  if (rule.type === 'Atrule') {
-    // ignore
-  } else if (rule.type === 'Rule') {
-    const converted = rule.prelude.children.map((selector) => {
-      rule.block.children.each(declaration => {
-        if (commander.ignoreDeclarations && commander.ignoreDeclarations.indexOf(declaration.property.toLowerCase()) >= 0) {
-          return // skip because it is ignored
-        }
-        // Append to a list of locations
-        const key = cssTree.translate(declaration)
-        let locs = cssDeclarations[key]
-        locs = locs || []
-        locs.push(declaration.loc)
-        cssDeclarations[key] = locs
-      })
-      return cssTree.translate(selector)
+// Delay so tests can quiet it
+function logger () {
+  if (!theLogger) {
+    theLogger = bunyan.createLogger({
+      name: 'css-coverage',
+      level: process.env.LOG_LEVEL || 'info',
+      stream: new BunyanFormat({ outputMode: process.env.LOG_FORMAT || 'short' })
     })
-    cssRules.push(converted)
-  } else {
-    throw new Error('BUG: Forgot to handle this rule subtype: ' + rule.type)
   }
-})
+  return theLogger
+}
 
-async function initializeSourceMapConsumer () {
+async function doStuff (cssFile, htmlFile, ignoreDeclarations, ignoreSourceMap) {
+  const { ast, cssContent, cssRules, cssDeclarations } = prepare(cssFile, ignoreDeclarations)
+  return runCoverage(htmlFile, cssFile, ignoreSourceMap, cssContent, cssRules, cssDeclarations, ast)
+}
+
+function prepare (cssFile, ignoreDeclarations) {
+  const cssContent = fs.readFileSync(cssFile, 'utf8')
+
+  let ast
+  try {
+    ast = cssTree.parse(cssContent, { filename: cssFile, positions: true })
+  } catch (e) {
+    // CssSyntaxError
+    console.error('CssSyntaxError: ' + e.message + ' @ ' + e.line + ':' + e.column)
+    throw e
+  }
+
+  const cssRules = []
+  const cssDeclarations = {} // so it is serializable to the browser
+
+  cssTree.walkRules(ast, (rule) => {
+    if (rule.type === 'Atrule') {
+      // ignore
+    } else if (rule.type === 'Rule') {
+      const converted = rule.prelude.children.map((selector) => {
+        rule.block.children.each(declaration => {
+          if (ignoreDeclarations && ignoreDeclarations.indexOf(declaration.property.toLowerCase()) >= 0) {
+            return // skip because it is ignored
+          }
+          // Append to a list of locations
+          const key = cssTree.translate(declaration)
+          let locs = cssDeclarations[key]
+          locs = locs || []
+          locs.push(declaration.loc)
+          cssDeclarations[key] = locs
+        })
+        return cssTree.translate(selector)
+      })
+      cssRules.push(converted)
+    } else {
+      throw new Error('BUG: Forgot to handle this rule subtype: ' + rule.type)
+    }
+  })
+
+  return { ast, cssContent, cssRules, cssDeclarations }
+}
+
+async function initializeSourceMapConsumer (cssFile, ignoreSourceMap, cssContent) {
   // Check if there is a sourceMappingURL
   let sourceMapPath
-  if (!commander.ignoreSourceMap && /sourceMappingURL=([^ ]*)/.exec(CSS_STR)) {
-    sourceMapPath = /sourceMappingURL=([^ ]*)/.exec(CSS_STR)[1]
-    sourceMapPath = path.resolve(path.dirname(commander.css), sourceMapPath)
-    if (commander.verbose) {
-      console.error('Using sourceMappingURL at ' + sourceMapPath)
-    }
+  if (!ignoreSourceMap && /sourceMappingURL=([^ ]*)/.exec(cssContent)) {
+    sourceMapPath = /sourceMappingURL=([^ ]*)/.exec(cssContent)[1]
+    sourceMapPath = path.resolve(path.dirname(cssFile), sourceMapPath)
+    logger().debug('Using sourceMappingURL at ' + sourceMapPath)
     const sourceMapStr = fs.readFileSync(sourceMapPath)
     const sourceMap = JSON.parse(sourceMapStr)
     const sourceMapConsumer = await new SourceMapConsumer(sourceMap)
@@ -118,22 +86,22 @@ async function initializeSourceMapConsumer () {
   }
 }
 
-async function runCoverage () {
-  const url = `file://${path.resolve(commander.html)}`
+async function runCoverage (htmlFile, cssFile, ignoreSourceMap, cssContent, cssRules, cssDeclarations, ast) {
+  const url = `file://${path.resolve(htmlFile)}`
 
-  log.debug('Starting puppeteer...')
+  logger().debug('Starting puppeteer...')
   const browser = await puppeteer.launch({
     args: ['--no-sandbox'],
     devtools: process.env.NODE_ENV === 'development'
   })
   const page = await browser.newPage()
 
-  log.info(`Opening (X)HTML file (may take a few minutes)`)
-  log.debug(`Opening "${url}"`)
+  logger().info(`Opening (X)HTML file (may take a few minutes)`)
+  logger().trace(`Opening "${url}"`)
   await page.goto(url)
-  log.debug(`Opened "${url}"`)
+  logger().debug(`Opened "${url}"`)
 
-  const browserLog = log.child({ browser: 'console' })
+  const browserLog = logger().child({ browser: 'console' })
   page.on('console', msg => {
     switch (msg.type()) {
       case 'error':
@@ -153,22 +121,28 @@ async function runCoverage () {
       case 'log':
         browserLog.debug(msg.text())
         break
+      case 'debug':
+        browserLog.debug(msg.text())
+        break
+      case 'trace':
+        browserLog.trace(msg.text())
+        break
       default:
         browserLog.error(msg.type(), msg.text())
         break
     }
   })
   page.on('pageerror', msgText => {
-    log.fatal('browser-ERROR', msgText)
-    process.exit(STATUS_CODE.ERROR)
+    logger().fatal('browser-ERROR', msgText)
+    throw new Error(msgText)
   })
 
-  log.debug(`Adding sizzleJS`)
+  logger().debug(`Adding sizzleJS`)
   await page.mainFrame().addScriptTag({
     path: require.resolve('sizzle')
   })
 
-  log.debug(`Calculating coverage`)
+  logger().debug(`Calculating coverage`)
   const { matchedSelectors: coverageOutput, supportedDeclarations } = await page.evaluate((cssRules, cssDeclarations) => {
     // This is the meat of the code. It runs inside the browser
     console.log(`Starting evaluation`)
@@ -184,7 +158,7 @@ async function runCoverage () {
 
     const matchedSelectors = []
     rules.forEach(function (selectors) {
-      console.log(`Checking selector: "${JSON.stringify(selectors)}"`)
+      console.trace(`Checking selector: "${JSON.stringify(selectors)}"`)
 
       let count = 0
       // selectors could be null (maybe if it's a comment?)
@@ -209,7 +183,7 @@ async function runCoverage () {
         })
       }
 
-      console.log(`Found ${count} matche(s)`)
+      console.debug(`Found ${count} matches for ${JSON.stringify(selectors)}`)
 
       matchedSelectors.push([count, selectors])
     })
@@ -228,29 +202,15 @@ async function runCoverage () {
     return { matchedSelectors, supportedDeclarations }
   }, cssRules, Object.keys(cssDeclarations))
 
-  log.debug('Closing browser')
+  logger().debug('Closing browser')
   await browser.close()
 
-  log.debug('Finished evaluating selectors')
-  log.info('Generating LCOV string...')
+  logger().debug('Finished evaluating selectors. Generating LCOV string...')
 
-  const lcovStr = await generateLcovStr(coverageOutput, supportedDeclarations)
-  if (commander.lcov) {
-    fs.writeFileSync(commander.lcov, lcovStr)
-  } else {
-    console.log(lcovStr)
-  }
-
-  log.debug('Done writing LCOV string')
+  return generateLcovStr(cssFile, ignoreSourceMap, cssContent, cssRules, cssDeclarations, ast, coverageOutput, supportedDeclarations)
 }
 
-runCoverage()
-  .then(null, err => {
-    log.fatal(err)
-    process.exit(STATUS_CODE.ERROR)
-  })
-
-async function generateLcovStr (coverageOutput, supportedDeclarations) {
+async function generateLcovStr (cssFile, ignoreSourceMap, cssContent, cssRules, cssDeclarations, ast, coverageOutput, supportedDeclarations) {
   // coverageOutput is of the form:
   // [[1, ['body']], [400, ['div.foo']]]
   // where each entry is a pair of count, selectors
@@ -265,61 +225,65 @@ async function generateLcovStr (coverageOutput, supportedDeclarations) {
   let sourceMapPath
 
   // Skip files that do not have a sourcemap
-  if (commander.ignoreSourceMap || !/sourceMappingURL=([^ ]*)/.test(CSS_STR)) {
+  if (ignoreSourceMap || !/sourceMappingURL=([^ ]*)/.test(cssContent)) {
     sourceMapConsumer = null
     sourceMapPath = 'noSourceMapProvided'
   } else {
-    const realConsumer = await initializeSourceMapConsumer()
+    const realConsumer = await initializeSourceMapConsumer(cssFile, ignoreSourceMap, cssContent)
     sourceMapConsumer = realConsumer.sourceMapConsumer
     sourceMapPath = realConsumer.sourceMapPath
   }
 
-  function getStartInfo (origStart, origEnd) {
-    let startInfo = sourceMapConsumer.originalPositionFor({ line: origStart.line, column: origStart.column - 1 })
+  function getStartInfoOrNull (orig) {
+    let startInfo = sourceMapConsumer.originalPositionFor({ line: orig.line, column: orig.column - 1 })
     // const endInfo = sourceMapConsumer.originalPositionFor({line: origEnd.line, column: origEnd.column - 2})
 
     // When there is no match, startInfo.source is null.
     // Try fiddling with the column
     if (!startInfo.source) {
-      startInfo = sourceMapConsumer.originalPositionFor({ line: origStart.line, column: origStart.column })
+      startInfo = sourceMapConsumer.originalPositionFor({ line: orig.line, column: orig.column })
     }
-    if (!startInfo.source /* || startInfo.source !== endInfo.source */) {
-      console.error('cssStart', JSON.stringify(origStart))
-      origEnd && console.error('cssEnd', JSON.stringify(origEnd))
-      // console.error('sourceStart', JSON.stringify(startInfo));
-      // console.error('sourceEnd', JSON.stringify(endInfo));
-      throw new Error('BUG: sourcemap might be invalid. Maybe try regenerating it?')
+    if (startInfo.source) {
+      logger().trace('matched this one', JSON.stringify(startInfo))
+      return startInfo
     } else {
-      if (commander.verbose) {
-        console.error('DEBUG: MATCHED this one', JSON.stringify(startInfo))
-      }
+      return null
+    }
+  }
+
+  function getStartInfo (orig) {
+    const startInfo = getStartInfoOrNull(orig)
+    if (!startInfo.source /* || startInfo.source !== endInfo.source */) {
+      logger().error('css', JSON.stringify(orig))
+      // logger().error('sourceStart', JSON.stringify(startInfo));
+      // logger().error('sourceEnd', JSON.stringify(endInfo));
+      throw new Error('BUG: sourcemap might be invalid. Maybe try regenerating it?')
     }
     return startInfo
   }
 
   const files = {} // key is filename, value is [{startLine, endLine, count}]
-  const ret = [] // each line in the lcov file. Joined at the end of the function
 
-  function addCoverageRaw (fileName, count, startLine, endLine) {
+  function addCoverageRaw (fileName, count, startLine, endLine, startColumn, endColumn) {
     // add it to the files
     if (!files[fileName]) {
       files[fileName] = []
     }
-    files[fileName].push({ startLine: startLine, endLine: endLine, count: count })
+    files[fileName].push({ startLine, endLine, startColumn, endColumn, count })
   }
 
   function addCoverage (count, origStart, origEnd) {
     if (sourceMapConsumer) {
       // From https://github.com/mozilla/source-map#sourcemapconsumerprototypeoriginalpositionforgeneratedposition
       // Could have been {line: rule.position.start.line, column: rule.positoin.start.column}
-      const startInfo = getStartInfo(origStart, origEnd)
-      addCoverageRaw(startInfo.source, count, startInfo.line, startInfo.line)
+      const startInfo = getStartInfo(origStart)
+      const endInfo = getStartInfoOrNull(origEnd) || startInfo
+      addCoverageRaw(startInfo.source, count, startInfo.line, endInfo.line, startInfo.column, endInfo.column)
     } else {
       // No sourceMap available
-      const fileName = commander.css
       const startLine = origStart.line
       const endLine = startLine // Just do the selector (startLine)
-      addCoverageRaw(fileName, count, startLine, endLine)
+      addCoverageRaw(cssFile, count, startLine, endLine, origStart.column, origStart.column)
     }
   }
 
@@ -345,35 +309,14 @@ async function generateLcovStr (coverageOutput, supportedDeclarations) {
   const unsupportedDeclarations = Object.keys(cssDeclarations).filter(decl => supportedDeclarations.indexOf(decl) < 0)
   for (const decl of unsupportedDeclarations) {
     for (const loc of cssDeclarations[decl]) {
-      addCoverage(0, loc.start)
+      addCoverage(0, loc.start, loc.end)
     }
   }
 
-  for (const fileName in files) {
-    let nonZero = 0 // For summary info
-    let allCounter = 0
-    const fileNamePrefix = sourceMapPath ? path.dirname(sourceMapPath) : ''
-    ret.push('SF:' + path.resolve(fileNamePrefix, fileName))
+  return { coverage: files, sourceMapPath }
+}
 
-    files[fileName].forEach(function (entry) {
-      const startLine = entry.startLine
-      const endLine = entry.endLine
-      const count = entry.count
-
-      for (let line = startLine; line <= endLine; line++) {
-        ret.push('DA:' + line + ',' + count)
-        if (count > 0) {
-          nonZero += 1
-        }
-        allCounter += 1
-      }
-    })
-
-    // Include summary info for the file
-    ret.push('LH:' + nonZero)
-    ret.push('LF:' + allCounter)
-    ret.push('end_of_record')
-  }
-
-  return ret.join('\n')
+module.exports = {
+  doStuff,
+  logger
 }
