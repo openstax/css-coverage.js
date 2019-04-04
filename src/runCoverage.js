@@ -8,15 +8,23 @@ require('dotenv').config()
 const bunyan = require('bunyan')
 const BunyanFormat = require('bunyan-format')
 
-const logger = bunyan.createLogger({
-  name: 'css-coverage',
-  level: process.env.LOG_LEVEL || 'info',
-  stream: new BunyanFormat({ outputMode: process.env.LOG_FORMAT || 'short' })
-})
+let theLogger = null
 
-async function doStuff (commander) {
-  const { ast, cssContent, cssRules, cssDeclarations } = prepare(commander.css, commander.ignoreDeclarations)
-  return runCoverage(commander.html, commander.css, commander.ignoreSourceMap, commander.lcov, cssContent, cssRules, cssDeclarations, ast)
+// Delay so tests can quiet it
+function logger () {
+  if (!theLogger) {
+    theLogger = bunyan.createLogger({
+      name: 'css-coverage',
+      level: process.env.LOG_LEVEL || 'info',
+      stream: new BunyanFormat({ outputMode: process.env.LOG_FORMAT || 'short' })
+    })
+  }
+  return theLogger
+}
+
+async function doStuff (cssFile, htmlFile, ignoreDeclarations, ignoreSourceMap) {
+  const { ast, cssContent, cssRules, cssDeclarations } = prepare(cssFile, ignoreDeclarations)
+  return runCoverage(htmlFile, cssFile, ignoreSourceMap, cssContent, cssRules, cssDeclarations, ast)
 }
 
 function prepare (cssFile, ignoreDeclarations) {
@@ -67,7 +75,7 @@ async function initializeSourceMapConsumer (cssFile, ignoreSourceMap, cssContent
   if (!ignoreSourceMap && /sourceMappingURL=([^ ]*)/.exec(cssContent)) {
     sourceMapPath = /sourceMappingURL=([^ ]*)/.exec(cssContent)[1]
     sourceMapPath = path.resolve(path.dirname(cssFile), sourceMapPath)
-    logger.debug('Using sourceMappingURL at ' + sourceMapPath)
+    logger().debug('Using sourceMappingURL at ' + sourceMapPath)
     const sourceMapStr = fs.readFileSync(sourceMapPath)
     const sourceMap = JSON.parse(sourceMapStr)
     const sourceMapConsumer = await new SourceMapConsumer(sourceMap)
@@ -78,22 +86,22 @@ async function initializeSourceMapConsumer (cssFile, ignoreSourceMap, cssContent
   }
 }
 
-async function runCoverage (htmlFile, cssFile, ignoreSourceMap, lcovFile, cssContent, cssRules, cssDeclarations, ast) {
+async function runCoverage (htmlFile, cssFile, ignoreSourceMap, cssContent, cssRules, cssDeclarations, ast) {
   const url = `file://${path.resolve(htmlFile)}`
 
-  logger.debug('Starting puppeteer...')
+  logger().debug('Starting puppeteer...')
   const browser = await puppeteer.launch({
     args: ['--no-sandbox'],
     devtools: process.env.NODE_ENV === 'development'
   })
   const page = await browser.newPage()
 
-  logger.info(`Opening (X)HTML file (may take a few minutes)`)
-  logger.trace(`Opening "${url}"`)
+  logger().info(`Opening (X)HTML file (may take a few minutes)`)
+  logger().trace(`Opening "${url}"`)
   await page.goto(url)
-  logger.debug(`Opened "${url}"`)
+  logger().debug(`Opened "${url}"`)
 
-  const browserLog = logger.child({ browser: 'console' })
+  const browserLog = logger().child({ browser: 'console' })
   page.on('console', msg => {
     switch (msg.type()) {
       case 'error':
@@ -125,16 +133,16 @@ async function runCoverage (htmlFile, cssFile, ignoreSourceMap, lcovFile, cssCon
     }
   })
   page.on('pageerror', msgText => {
-    logger.fatal('browser-ERROR', msgText)
+    logger().fatal('browser-ERROR', msgText)
     throw new Error(msgText)
   })
 
-  logger.debug(`Adding sizzleJS`)
+  logger().debug(`Adding sizzleJS`)
   await page.mainFrame().addScriptTag({
     path: require.resolve('sizzle')
   })
 
-  logger.debug(`Calculating coverage`)
+  logger().debug(`Calculating coverage`)
   const { matchedSelectors: coverageOutput, supportedDeclarations } = await page.evaluate((cssRules, cssDeclarations) => {
     // This is the meat of the code. It runs inside the browser
     console.log(`Starting evaluation`)
@@ -194,10 +202,10 @@ async function runCoverage (htmlFile, cssFile, ignoreSourceMap, lcovFile, cssCon
     return { matchedSelectors, supportedDeclarations }
   }, cssRules, Object.keys(cssDeclarations))
 
-  logger.debug('Closing browser')
+  logger().debug('Closing browser')
   await browser.close()
 
-  logger.debug('Finished evaluating selectors. Generating LCOV string...')
+  logger().debug('Finished evaluating selectors. Generating LCOV string...')
 
   return generateLcovStr(cssFile, ignoreSourceMap, cssContent, cssRules, cssDeclarations, ast, coverageOutput, supportedDeclarations)
 }
@@ -236,7 +244,7 @@ async function generateLcovStr (cssFile, ignoreSourceMap, cssContent, cssRules, 
       startInfo = sourceMapConsumer.originalPositionFor({ line: orig.line, column: orig.column })
     }
     if (startInfo.source) {
-      logger.trace('matched this one', JSON.stringify(startInfo))
+      logger().trace('matched this one', JSON.stringify(startInfo))
       return startInfo
     } else {
       return null
@@ -246,9 +254,9 @@ async function generateLcovStr (cssFile, ignoreSourceMap, cssContent, cssRules, 
   function getStartInfo (orig) {
     const startInfo = getStartInfoOrNull(orig)
     if (!startInfo.source /* || startInfo.source !== endInfo.source */) {
-      logger.error('css', JSON.stringify(orig))
-      // logger.error('sourceStart', JSON.stringify(startInfo));
-      // logger.error('sourceEnd', JSON.stringify(endInfo));
+      logger().error('css', JSON.stringify(orig))
+      // logger().error('sourceStart', JSON.stringify(startInfo));
+      // logger().error('sourceEnd', JSON.stringify(endInfo));
       throw new Error('BUG: sourcemap might be invalid. Maybe try regenerating it?')
     }
     return startInfo
