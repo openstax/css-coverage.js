@@ -226,48 +226,56 @@ async function generateLcovStr (cssFile, ignoreSourceMap, cssContent, cssRules, 
     sourceMapPath = realConsumer.sourceMapPath
   }
 
-  function getStartInfo (origStart, origEnd) {
-    let startInfo = sourceMapConsumer.originalPositionFor({ line: origStart.line, column: origStart.column - 1 })
+  function getStartInfoOrNull (orig) {
+    let startInfo = sourceMapConsumer.originalPositionFor({ line: orig.line, column: orig.column - 1 })
     // const endInfo = sourceMapConsumer.originalPositionFor({line: origEnd.line, column: origEnd.column - 2})
 
     // When there is no match, startInfo.source is null.
     // Try fiddling with the column
     if (!startInfo.source) {
-      startInfo = sourceMapConsumer.originalPositionFor({ line: origStart.line, column: origStart.column })
+      startInfo = sourceMapConsumer.originalPositionFor({ line: orig.line, column: orig.column })
     }
+    if (startInfo.source) {
+      logger.trace('matched this one', JSON.stringify(startInfo))
+      return startInfo
+    } else {
+      return null
+    }
+  }
+
+  function getStartInfo (orig) {
+    const startInfo = getStartInfoOrNull(orig)
     if (!startInfo.source /* || startInfo.source !== endInfo.source */) {
-      logger.error('cssStart', JSON.stringify(origStart))
-      origEnd && logger.error('cssEnd', JSON.stringify(origEnd))
+      logger.error('css', JSON.stringify(orig))
       // logger.error('sourceStart', JSON.stringify(startInfo));
       // logger.error('sourceEnd', JSON.stringify(endInfo));
       throw new Error('BUG: sourcemap might be invalid. Maybe try regenerating it?')
-    } else {
-      logger.trace('matched this one', JSON.stringify(startInfo))
     }
     return startInfo
   }
 
   const files = {} // key is filename, value is [{startLine, endLine, count}]
 
-  function addCoverageRaw (fileName, count, startLine, endLine) {
+  function addCoverageRaw (fileName, count, startLine, endLine, startColumn, endColumn) {
     // add it to the files
     if (!files[fileName]) {
       files[fileName] = []
     }
-    files[fileName].push({ startLine: startLine, endLine: endLine, count: count })
+    files[fileName].push({ startLine, endLine, startColumn, endColumn, count })
   }
 
   function addCoverage (count, origStart, origEnd) {
     if (sourceMapConsumer) {
       // From https://github.com/mozilla/source-map#sourcemapconsumerprototypeoriginalpositionforgeneratedposition
       // Could have been {line: rule.position.start.line, column: rule.positoin.start.column}
-      const startInfo = getStartInfo(origStart, origEnd)
-      addCoverageRaw(startInfo.source, count, startInfo.line, startInfo.line)
+      const startInfo = getStartInfo(origStart)
+      const endInfo = getStartInfoOrNull(origEnd) || startInfo
+      addCoverageRaw(startInfo.source, count, startInfo.line, endInfo.line, startInfo.column, endInfo.column)
     } else {
       // No sourceMap available
       const startLine = origStart.line
       const endLine = startLine // Just do the selector (startLine)
-      addCoverageRaw(cssFile, count, startLine, endLine)
+      addCoverageRaw(cssFile, count, startLine, endLine, origStart.column, origStart.column)
     }
   }
 
@@ -293,7 +301,7 @@ async function generateLcovStr (cssFile, ignoreSourceMap, cssContent, cssRules, 
   const unsupportedDeclarations = Object.keys(cssDeclarations).filter(decl => supportedDeclarations.indexOf(decl) < 0)
   for (const decl of unsupportedDeclarations) {
     for (const loc of cssDeclarations[decl]) {
-      addCoverage(0, loc.start)
+      addCoverage(0, loc.start, loc.end)
     }
   }
 

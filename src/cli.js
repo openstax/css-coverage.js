@@ -26,6 +26,7 @@ Use the LOG_LEVEL environment variable for more verbose logging. Values: error,w
   .option('--html [path/to/file.html]', 'path to a local HTML file', parseFileName) // TODO: Support multiple
   .option('--css [path/to/file.css]', 'path to a local CSS file', parseFileName)
   .option('--lcov [path/to/output.lcov]', 'the LCOV output file', parseFileName)
+  .option('--json [path/to/coverage.json]', 'the coverage.json file', parseFileName)
   .option('--ignore-source-map', 'disable loading the sourcemap if one is found')
   .option('--ignore-declarations [move-to,content]', 'A comma-separated list of declarations to ignore', parseTokenList)
   .parse(process.argv)
@@ -54,11 +55,13 @@ if (commander.css) {
 }
 
 doStuff(commander).then(({ coverage, sourceMapPath }) => {
-  const lcovStr = toLcov(coverage, sourceMapPath, commander.lcov)
   if (commander.lcov) {
-    fs.writeFileSync(commander.lcov, lcovStr)
-  } else {
-    console.log(lcovStr)
+    const str = toLcov(coverage, sourceMapPath, commander.lcov)
+    fs.writeFileSync(commander.lcov, str)
+  } 
+  if (commander.json) {
+    const str = toJson(coverage, sourceMapPath, commander.json)
+    fs.writeFileSync(commander.json, str)
   }
 
   logger.debug('Done writing LCOV string')
@@ -73,7 +76,7 @@ function toLcov (files, sourceMapPath, lcovFile) {
     let nonZero = 0 // For summary info
     let allCounter = 0
     const fileNamePrefix = sourceMapPath ? path.dirname(sourceMapPath) : ''
-    const destFile = lcovFile ? path.relative(path.dirname(lcovFile), path.resolve(fileNamePrefix, fileName)) : path.resolve(fileNamePrefix, fileName)
+    const destFile = path.relative(path.dirname(lcovFile), path.resolve(fileNamePrefix, fileName))
     ret.push(`SF:${destFile}`)
     files[fileName].forEach(function (entry) {
       const startLine = entry.startLine
@@ -93,4 +96,34 @@ function toLcov (files, sourceMapPath, lcovFile) {
     ret.push(`end_of_record`)
   }
   return ret.join('\n')
+}
+
+// https://github.com/gotwarlost/istanbul/blob/master/coverage.json.md
+function toJson(files, sourceMapPath, coverageFile) {
+  const ret = {}
+  for (const fileName in files) {
+    const coverageEntry = {l: {}, s: {}, statementMap: {}}
+
+    const fileNamePrefix = sourceMapPath ? path.dirname(sourceMapPath) : ''
+    const destFile = path.relative(path.dirname(coverageFile), path.resolve(fileNamePrefix, fileName))
+    
+    files[fileName].forEach(function (entry) {
+      const startLine = entry.startLine
+      const endLine = entry.endLine
+      const startColumn = entry.startColumn || 0
+      const endColumn = entry.endColumn || 0
+      const count = entry.count
+
+      const statementId = `${startLine}`
+      coverageEntry.s[statementId] = count
+      coverageEntry.l[statementId] = count
+
+      coverageEntry.statementMap[statementId] = {
+        start: {line: startLine, column: startColumn}, 
+        end: {line: endLine, column: endColumn}
+      }
+    })
+    ret[destFile] = coverageEntry
+  }
+  return JSON.stringify(ret, null, 4)
 }
