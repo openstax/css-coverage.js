@@ -3955,9 +3955,10 @@ sisteransi@^1.0.0:
   resolved "https://registry.yarnpkg.com/sisteransi/-/sisteransi-1.0.0.tgz#77d9622ff909080f1c19e5f4a1df0c1b0a27b88c"
   integrity sha512-N+z4pHB4AmUv0SjveWRd6q1Nj5w62m5jodv+GD8lvmbY/83T/rpbJGZOnK5T149OldDj4Db07BSv9xY4K6NTPQ==
 
-sizzle@2.3.3:
-  version "2.3.3"
-  resolved "https://registry.yarnpkg.com/sizzle/-/sizzle-2.3.3.tgz#4eb078c37231a56b52e4193f701e7ef8937e606b"
+sizzle@2.3.4:
+  version "2.3.4"
+  resolved "https://registry.yarnpkg.com/sizzle/-/sizzle-2.3.4.tgz#b0364988863863cac2942dc0bf40d1a637f38fb6"
+  integrity sha512-Mf37VjirD7RqCVeYgI8jb5K0DymIho/jNJqDgIkMs4cgKbEkvsow8Q6hpvF7Zmys9iEif0oW41hgbeWVZwABJw==
 
 slash@^2.0.0:
   version "2.0.0"
