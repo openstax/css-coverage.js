@@ -3,6 +3,7 @@ body .class1 {
   background-color: red;
   color: green;
   background-color: white;
+  gibberish: boo;
 }
 body .class2 {
   border: 1px solid;

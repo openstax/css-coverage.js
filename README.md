@@ -35,17 +35,14 @@ You can also generate LCOV Files for Coveralls or just HTML reports:
 ```txt
 Usage: css-coverage [options]
 
-Generate coverage info for a CSS file against an HTML file.
-This supports loading sourcemaps by using the sourceMappingURL=FILENAME.map CSS comment
+Generate coverage info for a CSS file against an HTML file. This supports loading sourcemaps by using the sourceMappingURL=FILENAME.map CSS comment
 
 Options:
-
-  -h, --help                    output usage information
-  --html [path/to/file.html]    path to a local HTML file
-  --css [path/to/file.css]      path to a local CSS file
-  --lcov [path/to/output.lcov]  the LCOV output file
-  --verbose                     verbose/debugging output
-  --ignore-source-map           disable loading the sourcemap if one is found
-  --cover-declarations          try to cover CSS declarations as well as selectors
-                                (best-effort, difficult with sourcemaps)
+  --html [path/to/file.html]               path to a local HTML file
+  --css [path/to/file.css]                 path to a local CSS file
+  --lcov [path/to/output.lcov]             the LCOV output file
+  --verbose                                verbose/debugging output
+  --ignore-source-map                      disable loading the sourcemap if one is found
+  --ignore-declarations [move-to,content]  A comma-separated list of declarations to ignore
+  -h, --help                               output usage information
 ```
