@@ -1,0 +1,43 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`tests ignores declarations that are in the whitelist 1`] = `
+"SF:test.css
+DA:1,2
+LH:1
+LF:1
+end_of_record"
+`;
+
+exports[`tests reports coverage 1`] = `
+"SF:test.css
+DA:1,2
+LH:1
+LF:1
+end_of_record"
+`;
+
+exports[`tests reports no coverage 1`] = `
+"SF:test.css
+DA:1,0
+LH:0
+LF:1
+end_of_record"
+`;
+
+exports[`tests reports no coverage on an invalid declaration 1`] = `
+"SF:test.css
+DA:1,2
+DA:2,0
+LH:1
+LF:2
+end_of_record"
+`;
+
+exports[`tests reports no coverage on an invalid value 1`] = `
+"SF:test.css
+DA:1,2
+DA:2,0
+LH:1
+LF:2
+end_of_record"
+`;
