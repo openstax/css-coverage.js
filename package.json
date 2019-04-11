@@ -17,7 +17,7 @@
     "css-tree": "1.0.0-alpha25",
     "dotenv": "^7.0.0",
     "puppeteer": "^1.12.2",
-    "sizzle": "2.3.3",
+    "sizzle": "2.3.4",
     "source-map": "0.7.3"
   },
   "bin": {
