@@ -13,7 +13,7 @@
   "dependencies": {
     "bunyan": "^1.8.12",
     "bunyan-format": "^0.2.1",
-    "commander": "3.0.0",
+    "commander": "3.0.2",
     "css-tree": "1.0.0-alpha25",
     "dotenv": "^8.0.0",
     "puppeteer": "^1.12.2",
