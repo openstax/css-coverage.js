@@ -850,10 +850,10 @@ combined-stream@^1.0.6, combined-stream@~1.0.6:
   dependencies:
     delayed-stream "~1.0.0"
 
-commander@3.0.0:
-  version "3.0.0"
-  resolved "https://registry.yarnpkg.com/commander/-/commander-3.0.0.tgz#0641ea00838c7a964627f04cddc336a2deddd60a"
-  integrity sha512-pl3QrGOBa9RZaslQiqnnKX2J068wcQw7j9AIaBQ9/JEp5RY6je4jKTImg0Bd+rpoONSe7GUFSgkxLeo17m3Pow==
+commander@3.0.1:
+  version "3.0.1"
+  resolved "https://registry.yarnpkg.com/commander/-/commander-3.0.1.tgz#4595aec3530525e671fb6f85fb173df8ff8bf57a"
+  integrity sha512-UNgvDd+csKdc9GD4zjtkHKQbT8Aspt2jCBqNSPp53vAS0L1tS9sXB2TCEOPHJ7kt9bN/niWkYj8T3RQSoMXdSQ==
 
 commander@~2.19.0:
   version "2.19.0"
@@ -4003,10 +4003,10 @@ sisteransi@^1.0.0:
   resolved "https://registry.yarnpkg.com/sisteransi/-/sisteransi-1.0.0.tgz#77d9622ff909080f1c19e5f4a1df0c1b0a27b88c"
   integrity sha512-N+z4pHB4AmUv0SjveWRd6q1Nj5w62m5jodv+GD8lvmbY/83T/rpbJGZOnK5T149OldDj4Db07BSv9xY4K6NTPQ==
 
-sizzle@2.3.4:
-  version "2.3.4"
-  resolved "https://registry.yarnpkg.com/sizzle/-/sizzle-2.3.4.tgz#b0364988863863cac2942dc0bf40d1a637f38fb6"
-  integrity sha512-Mf37VjirD7RqCVeYgI8jb5K0DymIho/jNJqDgIkMs4cgKbEkvsow8Q6hpvF7Zmys9iEif0oW41hgbeWVZwABJw==
+sizzle@2.3.5:
+  version "2.3.5"
+  resolved "https://registry.yarnpkg.com/sizzle/-/sizzle-2.3.5.tgz#ef7ccfbbcfeed2a18c2e5ce05603d6ffab64d89a"
+  integrity sha512-mncpQHS12IwzOpuMReKd2matojaS5M5Ofms96LUKOOg8S1M7jIh90OQyd2I6sBoHpxg/HoduOJNDTvRCmnm0YA==
 
 slash@^2.0.0:
   version "2.0.0"
