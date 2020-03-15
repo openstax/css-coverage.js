@@ -37,7 +37,7 @@
   "devDependencies": {
     "jest": "^24.7.1",
     "sass": "^1.17.0",
-    "standard": "^13.0.1",
+    "standard": "^14.3.3",
     "tmp": "^0.1.0"
   }
 }
