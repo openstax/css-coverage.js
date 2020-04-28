@@ -16,7 +16,7 @@
     "commander": "3.0.1",
     "css-tree": "1.0.0-alpha25",
     "dotenv": "^8.0.0",
-    "puppeteer": "^2.0.0",
+    "puppeteer": "^3.0.2",
     "sizzle": "2.3.4",
     "source-map": "0.7.3"
   },
